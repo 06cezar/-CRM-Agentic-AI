@@ -5,3 +5,6 @@ psycopg2-binary
 pydantic
 pydantic-settings
 alembic
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
