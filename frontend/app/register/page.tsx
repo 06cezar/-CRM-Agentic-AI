@@ -3,7 +3,11 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { Cpu, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
+import { useEffect } from "react"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -12,6 +16,11 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [shaking, setShaking] = useState(false)
+
+  useEffect(() => {
+    api.me().then(() => router.replace("/")).catch(() => {})
+  }, [router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -22,74 +31,114 @@ export default function RegisterPage() {
       router.push("/")
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed")
+      setShaking(true)
+      setTimeout(() => setShaking(false), 500)
     } finally {
       setLoading(false)
     }
   }
 
+  const inputClass = cn(
+    "w-full rounded-md border bg-input px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-colors",
+    error ? "border-destructive focus:ring-destructive/50" : "border-border"
+  )
+
+  const passwordValid = password.length >= 8
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950">
-      <div className="w-full max-w-sm space-y-6 p-8 rounded-xl border border-gray-800 bg-gray-900">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-white">Create account</h1>
-          <p className="text-sm text-gray-400">Agentic Command Center</p>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-full max-w-sm space-y-6 p-8 rounded-xl border border-border bg-card shadow-lg">
+
+        {/* Logo */}
+        <div className="flex items-center gap-3">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
+            <Cpu className="size-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold text-foreground">Agentic Command Center</h1>
+            <p className="text-xs text-muted-foreground">Create your account</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1">
-            <label className="text-sm text-gray-300" htmlFor="full_name">Full name</label>
+        <div className="h-px bg-border" />
+
+        <form onSubmit={handleSubmit} className={`space-y-4 ${shaking ? "shake" : ""}`}>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide" htmlFor="full_name">
+              Full name
+            </label>
             <input
               id="full_name"
               type="text"
               required
               value={fullName}
-              onChange={e => setFullName(e.target.value)}
-              className="w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              onChange={e => { setFullName(e.target.value); setError("") }}
+              className={inputClass}
               placeholder="Ana Ionescu"
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm text-gray-300" htmlFor="email">Email</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide" htmlFor="email">
+              Email
+            </label>
             <input
               id="email"
               type="email"
               required
               value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              onChange={e => { setEmail(e.target.value); setError("") }}
+              className={inputClass}
               placeholder="you@company.com"
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-sm text-gray-300" htmlFor="password">Password</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide" htmlFor="password">
+              Password
+            </label>
             <input
               id="password"
               type="password"
               required
               minLength={8}
               value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              onChange={e => { setPassword(e.target.value); setError("") }}
+              className={inputClass}
               placeholder="min. 8 characters"
             />
+            {password.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                {passwordValid
+                  ? <CheckCircle2 className="size-3 text-primary" />
+                  : <AlertCircle className="size-3 text-destructive" />}
+                <span className={cn("text-xs", passwordValid ? "text-primary" : "text-destructive")}>
+                  {passwordValid ? "Password looks good" : `${password.length}/8 characters`}
+                </span>
+              </div>
+            )}
           </div>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && (
+            <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2">
+              <AlertCircle className="size-4 text-destructive shrink-0" />
+              <p className="text-xs text-destructive">{error}</p>
+            </div>
+          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Creating account…" : "Create account"}
-          </button>
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="size-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
+                Creating account…
+              </span>
+            ) : "Create account"}
+          </Button>
         </form>
 
-        <p className="text-center text-sm text-gray-500">
+        <p className="text-center text-xs text-muted-foreground">
           Already have an account?{" "}
-          <Link href="/login" className="text-indigo-400 hover:text-indigo-300">
+          <Link href="/login" className="text-primary hover:text-primary/80 transition-colors">
             Sign in
           </Link>
         </p>

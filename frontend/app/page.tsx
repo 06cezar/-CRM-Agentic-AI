@@ -6,9 +6,19 @@ import { ActivityFeed } from "@/components/activity-feed"
 import { LeadPipeline, type Lead } from "@/components/lead-pipeline"
 import { CopilotSidebar } from "@/components/copilot-sidebar"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/hooks/useAuth"
 
 export default function AgenticCommandCenter() {
+  const { loading } = useAuth()
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-950">
+        <div className="size-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen flex-col bg-background">
