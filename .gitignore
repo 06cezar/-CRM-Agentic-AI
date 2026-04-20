@@ -15,3 +15,9 @@ next.user-config.*
 node_modules/
 .next/
 .DS_Store
+
+# Local documentation (not for version control)
+docs/
+
+# Claude Code local settings
+.claude/
