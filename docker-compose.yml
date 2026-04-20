@@ -20,8 +20,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # The database hostname is just the service name 'db'
       - DATABASE_URL=postgresql://crm_user:crm_password@db:5432/crm_db
+      - AI_SERVICE_URL=http://ai-service:8000
     depends_on:
       db:
         condition: service_healthy

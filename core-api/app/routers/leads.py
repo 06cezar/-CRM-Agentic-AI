@@ -3,10 +3,14 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict, computed_field
 from typing import Optional
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timezone
+import os
+import httpx
 from app.database import get_db
-from app.models import Lead, User
+from app.models import Lead, AgentActivity, User
 from app.auth import get_current_user
+
+AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:8001")
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -160,3 +164,61 @@ def delete_lead(
 
     db.delete(lead)
     db.commit()
+
+
+@router.post("/{lead_id}/research", response_model=LeadResponse)
+def research_lead(
+    lead_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Declanșează LeadResearchAgent pentru un lead.
+    Apelează ai-service, persistă rezultatele și returnează lead-ul îmbogățit.
+    """
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        Lead.assigned_to == current_user.id,
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    # ── Apelează ai-service ───────────────────────────────────────────────────
+    payload = {
+        "id": lead.id,
+        "name": lead.name,
+        "company": lead.company,
+        "role": lead.role,
+        "email": lead.email,
+        "deal_value_display": f"€{int(lead.deal_value):,}" if lead.deal_value else None,
+        "last_activity_description": lead.last_activity_description,
+    }
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(f"{AI_SERVICE_URL}/agent/research", json=payload)
+            response.raise_for_status()
+            result = response.json()
+    except httpx.HTTPError as e:
+        raise HTTPException(status_code=502, detail=f"AI service unavailable: {str(e)}")
+
+    # ── Persistă rezultatele în leads ────────────────────────────────────────
+    lead.intent_score = result["intent_score"]
+    lead.signals = result["signals"]
+    lead.last_researched_at = datetime.now(timezone.utc)
+
+    # ── Inserează în agent_activities ────────────────────────────────────────
+    activity = AgentActivity(
+        lead_id=lead.id,
+        lead_name=lead.name,
+        agent_name="LeadResearchAgent",
+        action_type="research",
+        message=result["summary"],
+        payload=result,
+        status="completed",
+    )
+    db.add(activity)
+    db.commit()
+    db.refresh(lead)
+
+    return lead
