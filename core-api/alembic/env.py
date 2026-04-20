@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.database import Base
-from app.models import User  # noqa: F401 — ensures model is registered
+from app.models import User, Lead, AgentActivity  # noqa: F401 — ensures models are registered
 
 config = context.config
 
