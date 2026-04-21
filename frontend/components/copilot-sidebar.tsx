@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import type { Lead } from "@/components/lead-pipeline"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { cn } from "@/lib/utils"
+import { useState } from "react";
+import type { Lead } from "@/components/lead-pipeline";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 import {
   Wand2,
   Copy,
@@ -20,24 +20,26 @@ import {
   Sparkles,
   X,
   ChevronRight,
-} from "lucide-react"
+} from "lucide-react";
 
 interface CopilotSidebarProps {
-  lead: Lead | null
-  onClose: () => void
+  lead: Lead | null;
+  onClose: () => void;
 }
 
 export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
-  const [copiedEmail, setCopiedEmail] = useState(false)
-  const [activeTab, setActiveTab] = useState<"argument" | "message">("argument")
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [activeTab, setActiveTab] = useState<"argument" | "message">(
+    "argument",
+  );
 
   const handleCopyEmail = () => {
     if (lead) {
-      navigator.clipboard.writeText(lead.draftMessage)
-      setCopiedEmail(true)
-      setTimeout(() => setCopiedEmail(false), 2000)
+      navigator.clipboard.writeText(lead.draftMessage);
+      setCopiedEmail(true);
+      setTimeout(() => setCopiedEmail(false), 2000);
     }
-  }
+  };
 
   if (!lead) {
     return (
@@ -49,14 +51,15 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
           AI Co-pilot Ready
         </h3>
         <p className="mt-2 text-sm text-muted-foreground max-w-[200px]">
-          Select a lead from the pipeline to get personalized insights and ready-to-send messages
+          Select a lead from the pipeline to get personalized insights and
+          ready-to-send messages
         </p>
         <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
           <ChevronRight className="size-4" />
           <span>Click on any lead to start</span>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -69,8 +72,12 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
               <Sparkles className="size-4 text-primary" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-foreground">Co-pilot</h2>
-              <p className="text-xs text-muted-foreground">AI-powered insights</p>
+              <h2 className="text-sm font-semibold text-foreground">
+                Co-pilot
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                AI-powered insights
+              </p>
             </div>
           </div>
           <Button
@@ -90,10 +97,15 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
           <div className="rounded-lg border border-border bg-secondary/30 p-4">
             <div className="flex items-start gap-3">
               <div className="flex size-12 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-lg">
-                {lead.name.split(" ").map((n) => n[0]).join("")}
+                {lead.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-foreground truncate">{lead.name}</h3>
+                <h3 className="font-semibold text-foreground truncate">
+                  {lead.name}
+                </h3>
                 <p className="text-sm text-muted-foreground">{lead.role}</p>
                 <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Building2 className="size-3" />
@@ -107,8 +119,8 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                   lead.score >= 80
                     ? "border-score-hot/50 text-score-hot"
                     : lead.score >= 60
-                    ? "border-score-warm/50 text-score-warm"
-                    : "border-score-cool/50 text-score-cool"
+                      ? "border-score-warm/50 text-score-warm"
+                      : "border-score-cool/50 text-score-cool",
                 )}
               >
                 {lead.score}%
@@ -146,7 +158,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                 "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all flex items-center justify-center gap-1.5",
                 activeTab === "argument"
                   ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <Target className="size-3.5" />
@@ -158,7 +170,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                 "flex-1 rounded-md px-3 py-2 text-xs font-medium transition-all flex items-center justify-center gap-1.5",
                 activeTab === "message"
                   ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               <MessageSquare className="size-3.5" />
@@ -188,12 +200,8 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                   Buying Signals
                 </h4>
                 <div className="flex flex-wrap gap-2">
-                  {lead.signals.map((signal) => (
-                    <Badge
-                      key={signal}
-                      variant="secondary"
-                      className="gap-1"
-                    >
+                  {(lead.signals ?? []).map((signal) => (
+                    <Badge key={signal} variant="secondary" className="gap-1">
                       <CheckCircle2 className="size-3 text-primary" />
                       {signal}
                     </Badge>
@@ -206,7 +214,9 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                 <div className="text-xs text-muted-foreground mb-1">
                   Estimated Deal Value
                 </div>
-                <div className="text-2xl font-bold text-foreground">{lead.value}</div>
+                <div className="text-2xl font-bold text-foreground">
+                  {lead.value}
+                </div>
               </div>
             </div>
           ) : (
@@ -250,7 +260,11 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                 </Button>
                 <Button
                   className="flex-1 gap-2"
-                  onClick={() => window.open(`mailto:${lead.email}?body=${encodeURIComponent(lead.draftMessage)}`)}
+                  onClick={() =>
+                    window.open(
+                      `mailto:${lead.email}?body=${encodeURIComponent(lead.draftMessage)}`,
+                    )
+                  }
                 >
                   <Send className="size-4" />
                   Send Email
@@ -282,5 +296,5 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
         </div>
       </ScrollArea>
     </div>
-  )
+  );
 }

@@ -1,9 +1,15 @@
 import os
+import sys
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
+
+# make project root importable so `from app...` works when alembic runs
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 from app.database import Base
-from app.models import User  # noqa: F401 — ensures model is registered
+from app.models import User, Lead  # noqa: F401 — ensures models are registered
+
 
 config = context.config
 
