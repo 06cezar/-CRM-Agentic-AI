@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, leads
+from app.routers import auth, leads, activities
 
 app = FastAPI(title="CRM Core API")
 
@@ -14,6 +14,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(leads.router, prefix="/api/v1/leads", tags=["leads"])
+app.include_router(activities.router, prefix="/api/v1/activities", tags=["activities"])
 
 
 @app.get("/")

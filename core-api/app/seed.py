@@ -1,13 +1,11 @@
 from app.database import SessionLocal
 from app import models
-from app.database import SessionLocal
-from app.models import User, Lead  # <--- ASTA LIPSEȘTE!
+from app.models import User, Lead
 
 
 def seed():
     db = SessionLocal()
     try:
-        # 1. Găsim user-ul tău specific după email; dacă nu există, folosim primul user
         first_user = db.query(User).filter(User.email == "stefan.salcianu26@gmail.com").first()
         if not first_user:
             first_user = db.query(User).first()
@@ -17,7 +15,6 @@ def seed():
                 print("❌ Eroare: Nu am găsit niciun utilizator în baza de date.")
                 return
 
-        # 2. Verificăm dacă ACEL user are deja lead-uri
         user_leads_count = db.query(Lead).filter(Lead.owner_id == first_user.id).count()
         if user_leads_count > 0:
             print(f"✅ Utilizatorul {first_user.email} are deja {user_leads_count} lead-uri. Ne oprim.")
@@ -80,5 +77,49 @@ def seed():
         db.close()
 
 
+def seed_activities():
+    db = SessionLocal()
+    try:
+        first_user = db.query(User).filter(User.email == "stefan.salcianu26@gmail.com").first()
+        if not first_user:
+            first_user = db.query(User).first()
+        if not first_user:
+            print("❌ Eroare: Nu am găsit niciun utilizator în baza de date.")
+            return
+
+        existing = db.query(models.Activity).filter(models.Activity.user_id == first_user.id).count()
+        if existing > 0:
+            print(f"✅ Există deja {existing} activități pentru {first_user.email}. Ne oprim.")
+            return
+
+        leads = db.query(Lead).filter(Lead.owner_id == first_user.id).all()
+
+        def lead_id(index):
+            return leads[index % len(leads)].id if leads else None
+
+        def lead_name(index):
+            return leads[index % len(leads)].name if leads else "Unknown"
+
+        dummy_activities = [
+            models.Activity(lead_id=lead_id(0), user_id=first_user.id, action_type="lead_created",    description=f"Created new lead: {lead_name(0)}"),
+            models.Activity(lead_id=lead_id(1), user_id=first_user.id, action_type="ai_insight",      description=f"Identified decision maker at {lead_name(1)}"),
+            models.Activity(lead_id=lead_id(2), user_id=first_user.id, action_type="email_received",  description=f"Received reply from {lead_name(2)}"),
+            models.Activity(lead_id=lead_id(3), user_id=first_user.id, action_type="status_change",   description=f"Lead {lead_name(3)} moved to 'warm'"),
+            models.Activity(lead_id=lead_id(4), user_id=first_user.id, action_type="ai_insight",      description=f"Detected buying signal from {lead_name(4)}"),
+            models.Activity(lead_id=lead_id(0), user_id=first_user.id, action_type="email_received",  description=f"Follow-up email opened by {lead_name(0)}"),
+            models.Activity(lead_id=lead_id(1), user_id=first_user.id, action_type="status_change",   description=f"Lead {lead_name(1)} moved to 'hot'"),
+            models.Activity(lead_id=lead_id(2), user_id=first_user.id, action_type="lead_created",    description=f"Created new lead: {lead_name(2)}"),
+            models.Activity(lead_id=lead_id(3), user_id=first_user.id, action_type="ai_insight",      description=f"Company news alert for {lead_name(3)}"),
+            models.Activity(lead_id=lead_id(4), user_id=first_user.id, action_type="email_received",  description=f"Inbound inquiry from {lead_name(4)}"),
+        ]
+
+        db.add_all(dummy_activities)
+        db.commit()
+        print(f"✅ Inserted {len(dummy_activities)} dummy activities for {first_user.email}.")
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     seed()
+    seed_activities()

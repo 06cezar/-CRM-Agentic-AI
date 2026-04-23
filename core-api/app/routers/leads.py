@@ -26,6 +26,15 @@ def create_lead(
         owner_id=current_user.id,
     )
     db.add(lead)
+    db.flush()
+
+    activity = models.Activity(
+        lead_id=lead.id,
+        user_id=current_user.id,
+        action_type="lead_created",
+        description=f"Created new lead: {lead.name}",
+    )
+    db.add(activity)
     db.commit()
     db.refresh(lead)
     return lead

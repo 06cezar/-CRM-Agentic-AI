@@ -25,3 +25,16 @@ class LeadRead(LeadBase):
 
     class Config:
         from_attributes = True
+
+
+class ActivityRead(BaseModel):
+    id: int
+    lead_id: Optional[int] = None
+    user_id: int
+    action_type: str
+    description: str
+    created_at: datetime
+    lead_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
