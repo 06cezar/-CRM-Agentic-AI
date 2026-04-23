@@ -13,6 +13,7 @@ class User(Base):
     role = Column(String, default="sales_rep", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     leads = relationship("Lead", back_populates="owner", cascade="all, delete-orphan")
+    activities = relationship("Activity", back_populates="user", cascade="all, delete-orphan")
 
 
 class Lead(Base):
@@ -27,3 +28,18 @@ class Lead(Base):
     deal_value = Column(Float, default=0.0, nullable=False)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     owner = relationship("User", back_populates="leads")
+    activities = relationship("Activity", back_populates="lead", cascade="all, delete-orphan")
+
+
+class Activity(Base):
+    __tablename__ = "activities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    action_type = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    lead = relationship("Lead", back_populates="activities")
+    user = relationship("User", back_populates="activities")
