@@ -1,148 +1,59 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   TrendingUp,
   Building2,
-  User,
   Flame,
   Zap,
   Snowflake,
   ArrowUpRight,
+  RefreshCw,
+  Plus,
 } from "lucide-react"
+import { api, type LeadAPI } from "@/lib/api"
+
+// ── Lead interface (shared with Copilot sidebar) ─────────────────────────────
 
 export interface Lead {
   id: string
   name: string
   company: string
+  role: string
+  email: string
+  phone: string
   score: number
   value: string
   lastActivity: string
   signals: string[]
-  email: string
-  phone: string
-  role: string
+  // Copilot fields — rămân goale până la EPIC 6
   winningArgument: string
   draftMessage: string
 }
 
-const leads: Lead[] = [
-  {
-    id: "1",
-    name: "Maria Ionescu",
-    company: "TechCorp SRL",
-    score: 94,
-    value: "€45,000",
-    lastActivity: "Viewed pricing page 3x today",
-    signals: ["Budget Approved", "Decision Maker"],
-    email: "maria.ionescu@techcorp.ro",
-    phone: "+40 721 234 567",
-    role: "CEO",
-    winningArgument:
-      "TechCorp has expanded 3x this year. They need automation to scale without hiring. Mention their competitor DataFlow just implemented similar solution.",
-    draftMessage:
-      "Hi Maria,\n\nI noticed TechCorp's impressive growth this year. DataFlow recently implemented our solution to handle their scaling challenges - I'd love to show you how we can help TechCorp achieve similar results without the overhead of expanding your team.\n\nWould Thursday at 2PM work for a quick call?\n\nBest regards",
-  },
-  {
-    id: "2",
-    name: "Alexandru Pop",
-    company: "Global Solutions",
-    score: 87,
-    value: "€32,000",
-    lastActivity: "Downloaded whitepaper yesterday",
-    signals: ["Actively Researching", "Q1 Budget"],
-    email: "alex.pop@globalsolutions.ro",
-    phone: "+40 722 345 678",
-    role: "CTO",
-    winningArgument:
-      "Technical buyer who values data security. Lead with SOC2 compliance and GDPR features. His team mentioned performance issues in recent review.",
-    draftMessage:
-      "Hi Alexandru,\n\nThanks for downloading our whitepaper on enterprise security. Given Global Solutions' focus on compliance, I wanted to highlight our SOC2 certification and built-in GDPR features.\n\nI'd love to walk you through our security architecture. Are you free for a 15-minute call this week?\n\nBest regards",
-  },
-  {
-    id: "3",
-    name: "Diana Radu",
-    company: "InnovateTech",
-    score: 81,
-    value: "€28,000",
-    lastActivity: "Requested demo 2 days ago",
-    signals: ["Demo Requested", "Fast-Mover"],
-    email: "diana.radu@innovatetech.ro",
-    phone: "+40 723 456 789",
-    role: "VP Operations",
-    winningArgument:
-      "Operations-focused buyer. Emphasize time savings and team productivity metrics. Their team works 12-hour days - efficiency is their pain point.",
-    draftMessage:
-      "Hi Diana,\n\nI'm preparing your demo and wanted to customize it for InnovateTech's operations needs. Our clients typically see 40% reduction in manual tasks within the first month.\n\nShould I focus the demo on workflow automation or team productivity features?\n\nLooking forward to showing you the platform!\n\nBest regards",
-  },
-  {
-    id: "4",
-    name: "Andrei Stanescu",
-    company: "CloudFirst SRL",
-    score: 73,
-    value: "€52,000",
-    lastActivity: "Opened 3 emails this week",
-    signals: ["High Engagement", "Enterprise"],
-    email: "andrei.stanescu@cloudfirst.ro",
-    phone: "+40 724 567 890",
-    role: "Director of Engineering",
-    winningArgument:
-      "Enterprise deal - needs stakeholder alignment. Suggest bringing in their CFO. Focus on ROI metrics and integration with existing stack.",
-    draftMessage:
-      "Hi Andrei,\n\nI've been analyzing CloudFirst's tech stack based on our previous conversations. I've prepared an integration roadmap that shows minimal disruption to your current workflows.\n\nWould it be helpful to include your CFO in our next call to discuss ROI projections?\n\nBest regards",
-  },
-  {
-    id: "5",
-    name: "Elena Mihai",
-    company: "StartUp Innovation",
-    score: 65,
-    value: "€18,000",
-    lastActivity: "Subscribed to newsletter",
-    signals: ["Early Stage", "Growing Fast"],
-    email: "elena.mihai@startupinno.ro",
-    phone: "+40 725 678 901",
-    role: "Founder",
-    winningArgument:
-      "Startup founder - price sensitive but growth-focused. Offer startup pricing tier. Mention case study of similar-stage company that scaled with us.",
-    draftMessage:
-      "Hi Elena,\n\nWelcome to our community! I noticed StartUp Innovation is in an exciting growth phase. We have a special startup program designed for companies at your stage.\n\nWould you like to hear how Rapid.io (similar stage last year) scaled their operations 5x using our platform?\n\nBest regards",
-  },
-  {
-    id: "6",
-    name: "Bogdan Popescu",
-    company: "Digital Agency Pro",
-    score: 58,
-    value: "€24,000",
-    lastActivity: "Visited site 2 weeks ago",
-    signals: ["Needs Nurturing"],
-    email: "bogdan.popescu@digitalagency.ro",
-    phone: "+40 726 789 012",
-    role: "Managing Partner",
-    winningArgument:
-      "Agency model - needs multi-client management features. Show white-label options. They lost a major client recently - timing could be right.",
-    draftMessage:
-      "Hi Bogdan,\n\nI hope Digital Agency Pro is having a great month! I wanted to share a quick update - we just launched white-label features that let agencies manage multiple clients from one dashboard.\n\nWould this be relevant for your team? Happy to give you a quick tour.\n\nBest regards",
-  },
-  {
-    id: "7",
-    name: "Cristina Dumitru",
-    company: "NextGen Solutions",
-    score: 42,
-    value: "€38,000",
-    lastActivity: "Cold outreach sent",
-    signals: ["New Lead", "Target ICP"],
-    email: "cristina.dumitru@nextgen.ro",
-    phone: "+40 727 890 123",
-    role: "Head of Digital",
-    winningArgument:
-      "Perfect ICP match but cold lead. Use industry-specific case study. Their company just announced digital transformation initiative.",
-    draftMessage:
-      "Hi Cristina,\n\nCongratulations on NextGen's digital transformation initiative! I work with several companies in your industry who have successfully modernized their operations.\n\nI'd love to share some insights that might be relevant to your goals. Would a brief call next week work?\n\nBest regards",
-  },
-]
+// ── Mapare API → Lead UI ──────────────────────────────────────────────────────
+
+function fromAPI(l: LeadAPI): Lead {
+  return {
+    id: String(l.id),
+    name: l.name,
+    company: l.company,
+    role: l.role,
+    email: l.email,
+    phone: l.phone ?? "",
+    score: l.score ?? 0,
+    value: l.deal_value_display ?? "—",
+    lastActivity: l.last_activity_description ?? "No activity yet",
+    signals: l.signals ?? [],
+    winningArgument: "",
+    draftMessage: "",
+  }
+}
+
+// ── Score helpers ─────────────────────────────────────────────────────────────
 
 function getScoreColor(score: number) {
   if (score >= 80) return "text-score-hot"
@@ -162,13 +73,62 @@ function getScoreIcon(score: number) {
   return Snowflake
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 interface LeadPipelineProps {
   selectedLead: Lead | null
   onSelectLead: (lead: Lead) => void
 }
 
 export function LeadPipeline({ selectedLead, onSelectLead }: LeadPipelineProps) {
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
+  const [researchingId, setResearchingId] = useState<string | null>(null)
+  const [researchError, setResearchError] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "hot" | "warm" | "cool">("all")
+
+  const fetchLeads = useCallback(async () => {
+    try {
+      const data = await api.getLeads()
+      setLeads(data.map(fromAPI))
+      setFetchError(false)
+    } catch {
+      setFetchError(true)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchLeads()
+  }, [fetchLeads])
+
+  // Dacă lead-ul selectat a fost actualizat (ex. după research), sync-uiește selectedLead
+  useEffect(() => {
+    if (selectedLead) {
+      const updated = leads.find((l) => l.id === selectedLead.id)
+      if (updated && updated.score !== selectedLead.score) {
+        onSelectLead(updated)
+      }
+    }
+  }, [leads, selectedLead, onSelectLead])
+
+  async function handleResearch(e: React.MouseEvent, leadId: string) {
+    e.stopPropagation()
+    setResearchingId(leadId)
+    setResearchError(null)
+    try {
+      const updated = await api.researchLead(Number(leadId))
+      setLeads((prev) =>
+        prev.map((l) => (l.id === leadId ? fromAPI(updated) : l))
+      )
+    } catch (err) {
+      setResearchError(err instanceof Error ? err.message : "Research failed")
+    } finally {
+      setResearchingId(null)
+    }
+  }
 
   const filteredLeads = leads.filter((lead) => {
     if (filter === "all") return true
@@ -201,9 +161,18 @@ export function LeadPipeline({ selectedLead, onSelectLead }: LeadPipelineProps) 
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-xs">
-            <span className="font-mono text-foreground">{leads.length}</span>
-            <span className="text-muted-foreground">leads</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={fetchLeads}
+              className="rounded p-1 text-muted-foreground hover:text-foreground transition-colors"
+              title="Refresh"
+            >
+              <RefreshCw className="size-3.5" />
+            </button>
+            <div className="flex items-center gap-1 text-xs">
+              <span className="font-mono text-foreground">{leads.length}</span>
+              <span className="text-muted-foreground">leads</span>
+            </div>
           </div>
         </div>
 
@@ -262,86 +231,166 @@ export function LeadPipeline({ selectedLead, onSelectLead }: LeadPipelineProps) 
       {/* Lead list */}
       <ScrollArea className="flex-1">
         <div className="space-y-1 p-2">
-          {filteredLeads.map((lead) => {
-            const ScoreIcon = getScoreIcon(lead.score)
-            const isSelected = selectedLead?.id === lead.id
-
-            return (
-              <button
-                key={lead.id}
-                onClick={() => onSelectLead(lead)}
-                className={cn(
-                  "w-full rounded-lg p-3 text-left transition-all",
-                  isSelected
-                    ? "bg-primary/10 border border-primary/30"
-                    : "hover:bg-accent/50 border border-transparent"
-                )}
-              >
+          {/* Loading skeleton */}
+          {loading &&
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-lg p-3">
                 <div className="flex items-start gap-3">
-                  {/* Score indicator */}
-                  <div
-                    className={cn(
-                      "flex size-10 shrink-0 items-center justify-center rounded-lg border",
-                      getScoreBg(lead.score)
-                    )}
-                  >
-                    <ScoreIcon className={cn("size-5", getScoreColor(lead.score))} />
+                  <div className="size-10 rounded-lg bg-secondary animate-pulse" />
+                  <div className="flex-1 space-y-2 pt-1">
+                    <div className="h-3 w-1/2 rounded bg-secondary animate-pulse" />
+                    <div className="h-2 w-3/4 rounded bg-secondary animate-pulse" />
+                    <div className="h-2 w-2/3 rounded bg-secondary animate-pulse" />
                   </div>
-
-                  {/* Lead info */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-foreground truncate">
-                        {lead.name}
-                      </span>
-                      <span
-                        className={cn(
-                          "font-mono text-sm font-bold",
-                          getScoreColor(lead.score)
-                        )}
-                      >
-                        {lead.score}%
-                      </span>
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Building2 className="size-3" />
-                      <span className="truncate">{lead.company}</span>
-                      <span className="text-muted-foreground/50">•</span>
-                      <span className="text-primary font-medium">{lead.value}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground truncate">
-                      {lead.lastActivity}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {lead.signals.map((signal) => (
-                        <Badge
-                          key={signal}
-                          variant="outline"
-                          className="text-[10px] px-1.5 py-0 h-5 border-border/50"
-                        >
-                          {signal}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Arrow indicator */}
-                  <ArrowUpRight
-                    className={cn(
-                      "size-4 shrink-0 transition-all",
-                      isSelected
-                        ? "text-primary translate-x-0.5 -translate-y-0.5"
-                        : "text-muted-foreground/50"
-                    )}
-                  />
                 </div>
+              </div>
+            ))}
+
+          {/* Fetch error state */}
+          {!loading && fetchError && (
+            <div className="flex flex-col items-center gap-2 py-12 text-center">
+              <p className="text-sm text-muted-foreground">Could not load leads</p>
+              <button
+                onClick={fetchLeads}
+                className="text-xs text-primary hover:underline"
+              >
+                Try again
               </button>
-            )
-          })}
+            </div>
+          )}
+
+          {/* Research error banner */}
+          {researchError && (
+            <div className="mx-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive flex items-center justify-between">
+              <span>{researchError}</span>
+              <button onClick={() => setResearchError(null)} className="ml-2 hover:opacity-70">✕</button>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {!loading && !fetchError && leads.length === 0 && (
+            <div className="flex flex-col items-center gap-3 py-12 text-center">
+              <Plus className="size-10 text-muted-foreground/30" />
+              <div>
+                <p className="text-sm font-medium text-foreground">No leads yet</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Add your first lead to get started
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Lead cards */}
+          {!loading && !fetchError &&
+            filteredLeads.map((lead) => {
+              const ScoreIcon = getScoreIcon(lead.score)
+              const isSelected = selectedLead?.id === lead.id
+              const isResearching = researchingId === lead.id
+
+              return (
+                <button
+                  key={lead.id}
+                  onClick={() => onSelectLead(lead)}
+                  className={cn(
+                    "w-full rounded-lg p-3 text-left transition-all",
+                    isSelected
+                      ? "bg-primary/10 border border-primary/30"
+                      : "hover:bg-accent/50 border border-transparent"
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Score indicator */}
+                    <div
+                      className={cn(
+                        "flex size-10 shrink-0 items-center justify-center rounded-lg border",
+                        getScoreBg(lead.score)
+                      )}
+                    >
+                      <ScoreIcon
+                        className={cn("size-5", getScoreColor(lead.score))}
+                      />
+                    </div>
+
+                    {/* Lead info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-foreground truncate">
+                          {lead.name}
+                        </span>
+                        <span
+                          className={cn(
+                            "font-mono text-sm font-bold",
+                            lead.score === 0
+                              ? "text-muted-foreground"
+                              : getScoreColor(lead.score)
+                          )}
+                        >
+                          {lead.score === 0 ? "—" : `${lead.score}%`}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Building2 className="size-3" />
+                        <span className="truncate">{lead.company}</span>
+                        <span className="text-muted-foreground/50">•</span>
+                        <span className="text-primary font-medium">
+                          {lead.value}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground truncate">
+                        {lead.lastActivity}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                        {lead.signals.map((signal) => (
+                          <Badge
+                            key={signal}
+                            variant="outline"
+                            className="text-[10px] px-1.5 py-0 h-5 border-border/50"
+                          >
+                            {signal}
+                          </Badge>
+                        ))}
+                        {/* Research button — apare când nu e scor sau la hover */}
+                        <button
+                          onClick={(e) => handleResearch(e, lead.id)}
+                          disabled={isResearching}
+                          className={cn(
+                            "ml-auto flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
+                            isResearching
+                              ? "text-muted-foreground cursor-not-allowed"
+                              : "text-primary hover:bg-primary/10"
+                          )}
+                        >
+                          {isResearching ? (
+                            <>
+                              <RefreshCw className="size-3 animate-spin" />
+                              Analyzing...
+                            </>
+                          ) : (
+                            <>
+                              <Flame className="size-3" />
+                              Research
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Arrow indicator */}
+                    <ArrowUpRight
+                      className={cn(
+                        "size-4 shrink-0 transition-all",
+                        isSelected
+                          ? "text-primary translate-x-0.5 -translate-y-0.5"
+                          : "text-muted-foreground/50"
+                      )}
+                    />
+                  </div>
+                </button>
+              )
+            })}
         </div>
       </ScrollArea>
     </div>
   )
 }
 
-export { leads }
