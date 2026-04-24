@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -12,13 +12,26 @@ import {
   Plus,
   LogOut,
 } from "lucide-react"
-import { api } from "@/lib/api"
+import { api, type StatsAPI } from "@/lib/api"
 import { useAuth } from "@/hooks/useAuth"
 
 export function CommandHeader() {
   const router = useRouter()
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
+  const [stats, setStats] = useState<StatsAPI | null>(null)
+
+  useEffect(() => {
+    api.getStats()
+      .then(setStats)
+      .catch(() => {/* stats sunt opționale, UI degradează graceful */})
+
+    // Refresh la fiecare 60s
+    const interval = setInterval(() => {
+      api.getStats().then(setStats).catch(() => {})
+    }, 60_000)
+    return () => clearInterval(interval)
+  }, [])
 
   const initials = user?.full_name
     ? user.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
@@ -51,19 +64,29 @@ export function CommandHeader() {
         <div className="flex items-center gap-2">
           <div className="size-2 rounded-full bg-score-hot animate-pulse" />
           <span className="text-xs text-muted-foreground">
-            <span className="font-mono text-foreground">3</span> hot leads today
+            <span className="font-mono text-foreground">
+              {stats ? stats.hot_leads : "—"}
+            </span>{" "}
+            hot leads
           </span>
         </div>
         <div className="h-4 w-px bg-border" />
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            AI processed <span className="font-mono text-foreground">47</span> actions
+            AI processed{" "}
+            <span className="font-mono text-foreground">
+              {stats ? stats.ai_actions_today : "—"}
+            </span>{" "}
+            actions today
           </span>
         </div>
         <div className="h-4 w-px bg-border" />
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
-            Pipeline value: <span className="font-mono text-primary font-semibold">€237K</span>
+            Pipeline:{" "}
+            <span className="font-mono text-primary font-semibold">
+              {stats ? stats.pipeline_value : "—"}
+            </span>
           </span>
         </div>
       </div>

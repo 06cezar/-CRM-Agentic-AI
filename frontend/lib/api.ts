@@ -44,6 +44,13 @@ export interface ActivityAPI {
   status: string
 }
 
+export interface StatsAPI {
+  hot_leads: number
+  ai_actions_today: number
+  pipeline_value: string
+  pipeline_value_raw: number
+}
+
 // ── API client ────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -69,4 +76,7 @@ export const api = {
   // ── Activity ───────────────────────────────────────────────────────────────
   getActivity: (limit = 10) =>
     request<ActivityAPI[]>(`/activity?limit=${limit}`),
+
+  // ── Stats ──────────────────────────────────────────────────────────────────
+  getStats: () => request<StatsAPI>("/stats"),
 }
