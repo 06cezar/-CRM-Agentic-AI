@@ -91,14 +91,18 @@ def _build_system_prompt() -> str:
 
 
 def _build_user_prompt(lead: dict) -> str:
+    def _val(key: str, fallback: str = "N/A") -> str:
+        v = lead.get(key)
+        return str(v) if v is not None else fallback
+
     return (
         f"Analizează acest lead:\n\n"
-        f"Nume: {lead.get('name', 'N/A')}\n"
-        f"Companie: {lead.get('company', 'N/A')}\n"
-        f"Rol: {lead.get('role', 'N/A')}\n"
-        f"Email: {lead.get('email', 'N/A')}\n"
-        f"Valoare deal: {lead.get('deal_value_display', 'N/A')}\n"
-        f"Ultima activitate: {lead.get('last_activity_description', 'necunoscută')}\n\n"
+        f"Nume: {_val('name')}\n"
+        f"Companie: {_val('company')}\n"
+        f"Rol: {_val('role')}\n"
+        f"Email: {_val('email')}\n"
+        f"Valoare deal: {_val('deal_value_display')}\n"
+        f"Ultima activitate: {_val('last_activity_description', 'necunoscută')}\n\n"
         f"Folosește tool-urile pentru a extrage semnalele de cumpărare și a calcula scorul de intenție."
     )
 
