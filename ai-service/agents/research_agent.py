@@ -1,12 +1,12 @@
 """
-LeadResearchAgent — analizează un lead și returnează:
+LeadResearchAgent — analyzes a lead and returns:
   - intent_score (0-100)
-  - signals (buying signals detectate)
-  - summary (descriere human-readable)
+  - signals (detected buying signals)
+  - summary (human-readable description)
   - confidence (0.0-1.0)
 
-Folosește Ollama via OpenAI-compatible API cu tool use.
-Model configurat prin env var OLLAMA_MODEL (default: llama3.1:8b).
+Uses Ollama via OpenAI-compatible API with tool use.
+Model configured via OLLAMA_MODEL env var (default: llama3.1:8b).
 """
 
 import os
@@ -16,7 +16,7 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-# ── Config — schimbă OLLAMA_MODEL în .env sau docker-compose ─────────────────
+# ── Config — set OLLAMA_MODEL in .env or docker-compose ──────────────────────
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://ollama:11434/v1")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 MAX_RETRIES = 2
@@ -30,9 +30,9 @@ TOOLS = [
         "function": {
             "name": "extract_signals",
             "description": (
-                "Analizează profilul unui lead și extrage buying signals — "
-                "indicii că lead-ul este pregătit să cumpere acum. "
-                "Exemple: 'Budget Approved', 'Decision Maker', 'Competitor Churn', "
+                "Analyze a lead's profile and extract buying signals — "
+                "indicators that the lead is ready to buy now. "
+                "Examples: 'Budget Approved', 'Decision Maker', 'Competitor Churn', "
                 "'Demo Requested', 'Actively Researching', 'Q1 Budget', 'Fast-Mover'."
             ),
             "parameters": {
@@ -41,7 +41,7 @@ TOOLS = [
                     "signals": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Lista de buying signals detectate (2-4 semnale scurte).",
+                        "description": "List of detected buying signals (2-4 short signals).",
                     }
                 },
                 "required": ["signals"],
@@ -53,25 +53,25 @@ TOOLS = [
         "function": {
             "name": "score_intent",
             "description": (
-                "Pe baza semnalelor și profilului lead-ului, calculează un scor "
-                "de intenție de cumpărare între 0 și 100. "
-                "80-100 = hot (gata să cumpere), 60-79 = warm (interesat), "
-                "0-59 = cool (necesită nurturing)."
+                "Based on the signals and lead profile, calculate a purchase intent score "
+                "between 0 and 100. "
+                "80-100 = hot (ready to buy), 60-79 = warm (interested), "
+                "0-59 = cool (needs nurturing)."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "intent_score": {
                         "type": "integer",
-                        "description": "Scor de intenție între 0 și 100.",
+                        "description": "Intent score between 0 and 100.",
                     },
                     "reasoning": {
                         "type": "string",
-                        "description": "Explicație scurtă (1-2 propoziții) pentru scorul acordat.",
+                        "description": "Short explanation (1-2 sentences) for the score given.",
                     },
                     "confidence": {
                         "type": "number",
-                        "description": "Nivelul de încredere în scor, între 0.0 și 1.0.",
+                        "description": "Confidence level in the score, between 0.0 and 1.0.",
                     },
                 },
                 "required": ["intent_score", "reasoning", "confidence"],
@@ -83,10 +83,10 @@ TOOLS = [
 
 def _build_system_prompt() -> str:
     return (
-        "Ești un agent AI specializat în analiza lead-urilor de vânzări. "
-        "Misiunea ta: analizează profilul unui lead și determină cât de pregătit este să cumpere. "
-        "Folosește tool-urile disponibile în ordine: mai întâi extract_signals, apoi score_intent. "
-        "Fii concis și practic."
+        "You are an AI agent specialized in sales lead analysis. "
+        "Your mission: analyze a lead's profile and determine how ready they are to buy. "
+        "Use the available tools in order: first extract_signals, then score_intent. "
+        "Be concise and practical."
     )
 
 
@@ -96,23 +96,23 @@ def _build_user_prompt(lead: dict) -> str:
         return str(v) if v is not None else fallback
 
     return (
-        f"Analizează acest lead:\n\n"
-        f"Nume: {_val('name')}\n"
-        f"Companie: {_val('company')}\n"
-        f"Rol: {_val('role')}\n"
+        f"Analyze this lead:\n\n"
+        f"Name: {_val('name')}\n"
+        f"Company: {_val('company')}\n"
+        f"Role: {_val('role')}\n"
         f"Email: {_val('email')}\n"
-        f"Valoare deal: {_val('deal_value_display')}\n"
-        f"Ultima activitate: {_val('last_activity_description', 'necunoscută')}\n\n"
-        f"Folosește tool-urile pentru a extrage semnalele de cumpărare și a calcula scorul de intenție."
+        f"Deal value: {_val('deal_value_display')}\n"
+        f"Last activity: {_val('last_activity_description', 'unknown')}\n\n"
+        f"Use the tools to extract buying signals and calculate the intent score."
     )
 
 
 def _extract_list(arguments: dict, key: str) -> list:
-    """Extrage o listă din arguments, cu fallback pentru modele care nested-uiesc sub 'object'."""
+    """Extract a list from arguments, with fallback for models that nest under 'object'."""
     value = arguments.get(key)
     if isinstance(value, list):
         return value
-    # Unele modele (ex. llama3.2:3b) returnează {"object": {"signals": [...]}}
+    # Some models (e.g. llama3.2:3b) return {"object": {"signals": [...]}}
     nested = arguments.get("object", {})
     if isinstance(nested, dict):
         value = nested.get(key)
@@ -122,7 +122,7 @@ def _extract_list(arguments: dict, key: str) -> list:
 
 
 def _handle_tool_call(tool_name: str, arguments: dict, state: dict) -> str:
-    """Procesează un tool call și actualizează starea agentului."""
+    """Process a tool call and update agent state."""
     if tool_name == "extract_signals":
         state["signals"] = _extract_list(arguments, "signals")
         return json.dumps({"status": "ok", "signals_detected": len(state["signals"])})
@@ -141,13 +141,13 @@ def _handle_tool_call(tool_name: str, arguments: dict, state: dict) -> str:
 
 def run(lead: dict) -> dict:
     """
-    Rulează LeadResearchAgent pentru un lead.
+    Run the LeadResearchAgent for a lead.
 
     Args:
-        lead: dict cu câmpurile lead-ului (name, company, role, etc.)
+        lead: dict with lead fields (name, company, role, etc.)
 
     Returns:
-        dict cu: intent_score, signals, summary, confidence
+        dict with: intent_score, signals, summary, confidence
     """
     state = {"signals": [], "intent_score": 50, "reasoning": "", "confidence": 0.5}
 
@@ -156,7 +156,7 @@ def run(lead: dict) -> dict:
         {"role": "user", "content": _build_user_prompt(lead)},
     ]
 
-    # ── Agent loop — max 6 iterații (tool use + răspuns final) ───────────────
+    # ── Agent loop — max 6 iterations (tool use + final response) ───────────
     for iteration in range(6):
         try:
             response = client.chat.completions.create(
@@ -172,7 +172,7 @@ def run(lead: dict) -> dict:
 
         message = response.choices[0].message
 
-        # Dacă modelul vrea să apeleze tool-uri
+        # If the model wants to call tools
         if message.tool_calls:
             messages.append(message)
             for tool_call in message.tool_calls:
@@ -189,18 +189,18 @@ def run(lead: dict) -> dict:
                     "tool_call_id": tool_call.id,
                     "content": result,
                 })
-            continue  # continuă loop-ul cu tool results
+            continue  # continue loop with tool results
 
-        # Modelul a terminat — ieșim din loop
+        # Model finished — exit loop
         break
 
-    # ── Construiește summary ─────────────────────────────────────────────────
-    signals_text = ", ".join(state["signals"]) if state["signals"] else "niciun semnal detectat"
+    # ── Build summary ────────────────────────────────────────────────────────
+    signals_text = ", ".join(state["signals"]) if state["signals"] else "no signals detected"
     summary = (
-        f"Am cercetat prospectul {lead.get('name', 'N/A')} "
+        f"Researched prospect {lead.get('name', 'N/A')} "
         f"({lead.get('company', 'N/A')}) — "
-        f"scor: {state['intent_score']}, "
-        f"semnale: {signals_text}. "
+        f"score: {state['intent_score']}, "
+        f"signals: {signals_text}. "
         f"{state['reasoning']}"
     ).strip()
 

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -79,11 +80,16 @@ export function AddLeadModal({ open, onClose, onSuccess }: AddLeadModalProps) {
         last_activity_description: form.last_activity_description || null,
         status: form.status,
       })
+      toast.success(`Lead "${form.name}" created`, {
+        description: "AI research started in background",
+      })
       reset()
       onSuccess()
       onClose()
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to create lead")
+      const msg = err instanceof Error ? err.message : "Failed to create lead"
+      setError(msg)
+      toast.error("Failed to create lead", { description: msg })
     } finally {
       setLoading(false)
     }

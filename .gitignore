@@ -21,3 +21,15 @@ docs/
 
 # Claude Code local settings
 .claude/
+
+# Presentations & generated slide assets
+presentations/
+*.pptx
+*.ppt
+slide-*.jpg
+output.pptx
+
+# Root-level pptxgenjs install (presentation tooling, not part of app)
+/package.json
+/package-lock.json
+/node_modules/

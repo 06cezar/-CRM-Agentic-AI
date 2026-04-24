@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useRef } from "react"
+import { toast } from "sonner"
 import {
   Dialog,
   DialogContent,
@@ -35,7 +36,7 @@ export function ImportCsvModal({ open, onClose, onSuccess }: ImportCsvModalProps
   function handleFile(f: File | null) {
     if (!f) return
     if (!f.name.toLowerCase().endsWith(".csv")) {
-      setError("Doar fișiere .csv sunt acceptate")
+      setError("Only .csv files are accepted")
       return
     }
     setFile(f)
@@ -70,9 +71,18 @@ export function ImportCsvModal({ open, onClose, onSuccess }: ImportCsvModalProps
 
       const data: ImportResult = await res.json()
       setResult(data)
-      if (data.imported > 0) onSuccess()
+      if (data.imported > 0) {
+        toast.success(`${data.imported} leads imported`, {
+          description: data.skipped > 0 ? `${data.skipped} rows skipped` : "AI research started in background",
+        })
+        onSuccess()
+      } else {
+        toast.warning("No leads imported", { description: "Check that your CSV has name and email columns" })
+      }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Import failed")
+      const msg = err instanceof Error ? err.message : "Import failed"
+      setError(msg)
+      toast.error("Import failed", { description: msg })
     } finally {
       setLoading(false)
     }
@@ -95,7 +105,7 @@ export function ImportCsvModal({ open, onClose, onSuccess }: ImportCsvModalProps
         <div className="space-y-4">
           {/* Format hint */}
           <p className="text-xs text-muted-foreground">
-            Acceptă exporturi din <strong>LinkedIn</strong>, <strong>HubSpot</strong>, <strong>Excel</strong> sau orice CSV cu coloanele:{" "}
+            Accepts exports from <strong>LinkedIn</strong>, <strong>HubSpot</strong>, <strong>Excel</strong> or any CSV with columns:{" "}
             <code className="text-xs bg-muted px-1 rounded">name, email, company, role, phone, deal_value, currency</code>
           </p>
 
@@ -129,7 +139,7 @@ export function ImportCsvModal({ open, onClose, onSuccess }: ImportCsvModalProps
                 <div className="space-y-2">
                   <Upload className="size-8 text-muted-foreground mx-auto" />
                   <p className="text-sm text-muted-foreground">
-                    Trage fișierul CSV aici sau <span className="text-primary underline">alege fișier</span>
+                    Drag your CSV here or <span className="text-primary underline">browse file</span>
                   </p>
                 </div>
               )}
@@ -141,12 +151,12 @@ export function ImportCsvModal({ open, onClose, onSuccess }: ImportCsvModalProps
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm">
                 <CheckCircle className="size-4 text-green-500 shrink-0" />
-                <span><strong>{result.imported}</strong> lead-uri importate cu succes</span>
+                <span><strong>{result.imported}</strong> leads imported successfully</span>
               </div>
               {result.skipped > 0 && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <AlertCircle className="size-4 shrink-0" />
-                  <span><strong>{result.skipped}</strong> rânduri sărite (lipsă name/email)</span>
+                  <span><strong>{result.skipped}</strong> rows skipped (missing name/email)</span>
                 </div>
               )}
               {result.errors.length > 0 && (
@@ -158,7 +168,7 @@ export function ImportCsvModal({ open, onClose, onSuccess }: ImportCsvModalProps
               )}
               {result.imported > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Research AI pornit automat în background pentru fiecare lead importat.
+                  AI research started automatically in the background for each imported lead.
                 </p>
               )}
             </div>

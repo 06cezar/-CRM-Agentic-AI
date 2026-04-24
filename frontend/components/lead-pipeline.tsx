@@ -15,6 +15,7 @@ import {
   Plus,
 } from "lucide-react"
 import { api, type LeadAPI } from "@/lib/api"
+import { toast } from "sonner"
 
 // ── Lead interface (shared with Copilot sidebar) ─────────────────────────────
 
@@ -121,11 +122,15 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
     setResearchError(null)
     try {
       const updated = await api.researchLead(Number(leadId))
-      setLeads((prev) =>
-        prev.map((l) => (l.id === leadId ? fromAPI(updated) : l))
-      )
+      const mapped = fromAPI(updated)
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? mapped : l)))
+      toast.success(`Research complete — ${mapped.name}`, {
+        description: `Intent score: ${mapped.score} · ${mapped.signals.length} signals detected`,
+      })
     } catch (err) {
-      setResearchError(err instanceof Error ? err.message : "Research failed")
+      const msg = err instanceof Error ? err.message : "Research failed"
+      setResearchError(msg)
+      toast.error("Research failed", { description: msg })
     } finally {
       setResearchingId(null)
     }
