@@ -78,9 +78,10 @@ function getScoreIcon(score: number) {
 interface LeadPipelineProps {
   selectedLead: Lead | null
   onSelectLead: (lead: Lead) => void
+  refreshTrigger?: number
 }
 
-export function LeadPipeline({ selectedLead, onSelectLead }: LeadPipelineProps) {
+export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: LeadPipelineProps) {
   const [leads, setLeads] = useState<Lead[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(false)
@@ -102,7 +103,7 @@ export function LeadPipeline({ selectedLead, onSelectLead }: LeadPipelineProps) 
 
   useEffect(() => {
     fetchLeads()
-  }, [fetchLeads])
+  }, [fetchLeads, refreshTrigger])
 
   // Dacă lead-ul selectat a fost actualizat (ex. după research), sync-uiește selectedLead
   useEffect(() => {

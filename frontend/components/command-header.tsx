@@ -10,15 +10,24 @@ import {
   Settings,
   ChevronDown,
   Plus,
+  Upload,
   LogOut,
 } from "lucide-react"
 import { api, type StatsAPI } from "@/lib/api"
 import { useAuth } from "@/hooks/useAuth"
+import { AddLeadModal } from "@/components/add-lead-modal"
+import { ImportCsvModal } from "@/components/import-csv-modal"
 
-export function CommandHeader() {
+interface CommandHeaderProps {
+  onLeadCreated?: () => void
+}
+
+export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
   const router = useRouter()
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [stats, setStats] = useState<StatsAPI | null>(null)
 
   useEffect(() => {
@@ -93,10 +102,34 @@ export function CommandHeader() {
 
       {/* Right actions */}
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          className="hidden sm:flex gap-1.5"
+          onClick={() => setModalOpen(true)}
+        >
           <Plus className="size-3.5" />
           Add Lead
         </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="hidden sm:flex gap-1.5 text-muted-foreground"
+          onClick={() => setImportOpen(true)}
+        >
+          <Upload className="size-3.5" />
+          Import CSV
+        </Button>
+        <AddLeadModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onSuccess={() => onLeadCreated?.()}
+        />
+        <ImportCsvModal
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          onSuccess={() => onLeadCreated?.()}
+        />
         <Button variant="ghost" size="icon-sm" className="relative">
           <Bell className="size-4" />
           <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">

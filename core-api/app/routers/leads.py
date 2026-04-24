@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict, computed_field
 from typing import Optional
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
+import csv
+import io
 import os
 import logging
 import httpx
@@ -292,3 +294,110 @@ def research_lead(
     db.refresh(lead)
 
     return lead
+
+
+# ── CSV Import ────────────────────────────────────────────────────────────────
+
+# Mapare flexibilă: numele coloanei din CSV → câmpul intern
+_COL_MAP = {
+    "name": "name", "full name": "name", "contact name": "name",
+    "first name": "_first", "last name": "_last",
+    "company": "company", "company name": "company", "organization": "company",
+    "role": "role", "job title": "role", "position": "role", "title": "role",
+    "email": "email", "email address": "email",
+    "phone": "phone", "phone number": "phone", "mobile": "phone",
+    "deal value": "deal_value", "amount": "deal_value", "deal amount": "deal_value", "value": "deal_value",
+    "currency": "currency",
+    "last activity": "last_activity_description", "notes": "last_activity_description",
+    "description": "last_activity_description", "activity": "last_activity_description",
+    "status": "status",
+}
+
+
+def _map_row(row: dict) -> dict:
+    """Mapează un rând CSV la câmpurile modelului Lead."""
+    mapped: dict = {}
+    for col, val in row.items():
+        key = _COL_MAP.get(col.lower().strip())
+        if key and val.strip():
+            mapped[key] = val.strip()
+
+    # Combină first name + last name dacă nu există "name"
+    if "name" not in mapped:
+        first = mapped.pop("_first", "")
+        last = mapped.pop("_last", "")
+        full = f"{first} {last}".strip()
+        if full:
+            mapped["name"] = full
+
+    return mapped
+
+
+@router.post("/import")
+async def import_leads_csv(
+    file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Importă lead-uri dintr-un fișier CSV.
+    Suportă exporturi din LinkedIn, HubSpot, Excel sau format generic.
+    Returnează câte rânduri au fost importate și câte au fost sărite.
+    """
+    if not file.filename or not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only .csv files are accepted")
+
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")  # utf-8-sig elimină BOM-ul Excel
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+
+    imported, skipped, errors = 0, 0, []
+
+    for i, row in enumerate(reader, start=2):  # start=2 pt că linia 1 e header
+        mapped = _map_row(row)
+
+        # Câmpuri obligatorii
+        if not mapped.get("name") or not mapped.get("email"):
+            skipped += 1
+            errors.append(f"Row {i}: missing name or email — skipped")
+            continue
+
+        # Parsează deal_value
+        deal_value = None
+        if mapped.get("deal_value"):
+            try:
+                clean = mapped["deal_value"].replace(",", "").replace("€", "").replace("$", "").replace("£", "").strip()
+                deal_value = Decimal(clean)
+            except InvalidOperation:
+                pass  # ignoră valori invalide
+
+        lead = Lead(
+            name=mapped["name"],
+            company=mapped.get("company", "—"),
+            role=mapped.get("role", "—"),
+            email=mapped["email"],
+            phone=mapped.get("phone"),
+            deal_value=deal_value,
+            currency=mapped.get("currency", "EUR").upper()[:10],
+            last_activity_description=mapped.get("last_activity_description"),
+            status=mapped.get("status", "new"),
+            assigned_to=current_user.id,
+        )
+        db.add(lead)
+        db.flush()  # obținem lead.id fără commit
+
+        background_tasks.add_task(_run_research_in_background, lead.id)
+        imported += 1
+
+    db.commit()
+
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "errors": errors[:10],  # max 10 erori în răspuns
+    }
