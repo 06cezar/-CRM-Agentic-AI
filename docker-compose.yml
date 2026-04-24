@@ -1,4 +1,4 @@
-﻿services:
+services:
   frontend:
     build:
       context: ./frontend
@@ -38,7 +38,7 @@
       - "8001:8000"
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434/v1
-      # SchimbÄƒ modelul aici â€” llama3.2:3b (rapid) sau llama3.1:8b (mai bun)
+      # Schimba modelul aici: llama3.2:3b (rapid) sau llama3.1:8b (mai bun)
       - OLLAMA_MODEL=llama3.2:3b
     depends_on:
       - ollama

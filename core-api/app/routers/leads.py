@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, ConfigDict, computed_field
 from typing import Optional
 from decimal import Decimal
 from datetime import datetime, timezone
 import os
+import logging
 import httpx
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import Lead, AgentActivity, User
 from app.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:8001")
 
@@ -83,6 +86,63 @@ class LeadResponse(BaseModel):
         return _format_deal_value(self.deal_value, self.currency)
 
 
+# ── Background research ───────────────────────────────────────────────────────
+
+def _run_research_in_background(lead_id: int) -> None:
+    """
+    Apelează ai-service și persistă rezultatele pentru un lead.
+    Rulează în background după crearea unui lead — nu blochează răspunsul.
+    Folosește propria sesiune DB (nu cea din request, care e deja închisă).
+    """
+    db = SessionLocal()
+    try:
+        lead = db.query(Lead).filter(Lead.id == lead_id).first()
+        if not lead:
+            return
+
+        payload = {
+            "id": lead.id,
+            "name": lead.name,
+            "company": lead.company,
+            "role": lead.role,
+            "email": lead.email,
+            "deal_value_display": _format_deal_value(lead.deal_value, lead.currency),
+            "last_activity_description": lead.last_activity_description,
+        }
+
+        try:
+            with httpx.Client(timeout=60.0) as client:
+                response = client.post(f"{AI_SERVICE_URL}/agent/research", json=payload)
+                response.raise_for_status()
+                result = response.json()
+        except httpx.HTTPError as e:
+            logger.warning(f"Background research failed for lead {lead_id}: {e}")
+            return
+
+        lead.intent_score = result["intent_score"]
+        lead.signals = result["signals"]
+        lead.last_researched_at = datetime.now(timezone.utc)
+
+        activity = AgentActivity(
+            lead_id=lead.id,
+            lead_name=lead.name,
+            agent_name="LeadResearchAgent",
+            action_type="research",
+            message=result["summary"],
+            payload=result,
+            status="completed",
+        )
+        db.add(activity)
+        db.commit()
+        logger.info(f"Background research completed for lead {lead_id}, score={result['intent_score']}")
+
+    except Exception as e:
+        logger.error(f"Unexpected error in background research for lead {lead_id}: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("", response_model=list[LeadResponse])
@@ -103,14 +163,19 @@ def list_leads(
 @router.post("", response_model=LeadResponse, status_code=201)
 def create_lead(
     body: LeadCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Create a new lead assigned to the current user."""
+    """Create a new lead and trigger background research automatically."""
     lead = Lead(**body.model_dump(), assigned_to=current_user.id)
     db.add(lead)
     db.commit()
     db.refresh(lead)
+
+    # Pornește research în background — răspunsul e returnat imediat
+    background_tasks.add_task(_run_research_in_background, lead.id)
+
     return lead
 
 
