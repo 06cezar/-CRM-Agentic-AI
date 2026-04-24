@@ -103,16 +103,33 @@ def _build_user_prompt(lead: dict) -> str:
     )
 
 
+def _extract_list(arguments: dict, key: str) -> list:
+    """Extrage o listă din arguments, cu fallback pentru modele care nested-uiesc sub 'object'."""
+    value = arguments.get(key)
+    if isinstance(value, list):
+        return value
+    # Unele modele (ex. llama3.2:3b) returnează {"object": {"signals": [...]}}
+    nested = arguments.get("object", {})
+    if isinstance(nested, dict):
+        value = nested.get(key)
+        if isinstance(value, list):
+            return value
+    return []
+
+
 def _handle_tool_call(tool_name: str, arguments: dict, state: dict) -> str:
     """Procesează un tool call și actualizează starea agentului."""
     if tool_name == "extract_signals":
-        state["signals"] = arguments.get("signals", [])
+        state["signals"] = _extract_list(arguments, "signals")
         return json.dumps({"status": "ok", "signals_detected": len(state["signals"])})
 
     if tool_name == "score_intent":
-        state["intent_score"] = max(0, min(100, int(arguments.get("intent_score", 50))))
-        state["reasoning"] = arguments.get("reasoning", "")
-        state["confidence"] = max(0.0, min(1.0, float(arguments.get("confidence", 0.5))))
+        raw_score = arguments.get("intent_score") or (arguments.get("object") or {}).get("intent_score", 50)
+        raw_conf = arguments.get("confidence") or (arguments.get("object") or {}).get("confidence", 0.5)
+        raw_reasoning = arguments.get("reasoning") or (arguments.get("object") or {}).get("reasoning", "")
+        state["intent_score"] = max(0, min(100, int(raw_score)))
+        state["reasoning"] = raw_reasoning
+        state["confidence"] = max(0.0, min(1.0, float(raw_conf)))
         return json.dumps({"status": "ok"})
 
     return json.dumps({"error": f"Unknown tool: {tool_name}"})

@@ -17,6 +17,14 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 CURRENCY_SYMBOLS = {"EUR": "€", "USD": "$", "GBP": "£", "RON": "RON "}
 
 
+def _format_deal_value(deal_value: Optional[Decimal], currency: str) -> Optional[str]:
+    """Formatează deal value cu simbolul corect al monedei."""
+    if deal_value is None:
+        return None
+    symbol = CURRENCY_SYMBOLS.get(currency, currency + " ")
+    return f"{symbol}{int(deal_value):,}"
+
+
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class LeadCreate(BaseModel):
@@ -72,10 +80,7 @@ class LeadResponse(BaseModel):
     @property
     def deal_value_display(self) -> Optional[str]:
         """Pre-formatted deal value for frontend (e.g. '€45,000')."""
-        if self.deal_value is None:
-            return None
-        symbol = CURRENCY_SYMBOLS.get(self.currency, self.currency + " ")
-        return f"{symbol}{int(self.deal_value):,}"
+        return _format_deal_value(self.deal_value, self.currency)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -190,12 +195,12 @@ def research_lead(
         "company": lead.company,
         "role": lead.role,
         "email": lead.email,
-        "deal_value_display": f"€{int(lead.deal_value):,}" if lead.deal_value else None,
+        "deal_value_display": _format_deal_value(lead.deal_value, lead.currency),
         "last_activity_description": lead.last_activity_description,
     }
 
     try:
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=60.0) as client:
             response = client.post(f"{AI_SERVICE_URL}/agent/research", json=payload)
             response.raise_for_status()
             result = response.json()
