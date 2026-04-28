@@ -56,21 +56,36 @@ function fromAPI(l: LeadAPI): Lead {
 
 // ── Score helpers ─────────────────────────────────────────────────────────────
 
-function getScoreColor(score: number) {
-  if (score >= 80) return "text-score-hot"
-  if (score >= 60) return "text-score-warm"
+function getScoreColor(statusOrScore: string | number) {
+  if (typeof statusOrScore === "string") {
+    if (statusOrScore === "hot") return "text-score-hot"
+    if (statusOrScore === "warm") return "text-score-warm"
+    return "text-score-cool"
+  }
+  if (statusOrScore >= 80) return "text-score-hot"
+  if (statusOrScore >= 60) return "text-score-warm"
   return "text-score-cool"
 }
 
-function getScoreBg(score: number) {
-  if (score >= 80) return "bg-score-hot/10 border-score-hot/30"
-  if (score >= 60) return "bg-score-warm/10 border-score-warm/30"
+function getScoreBg(statusOrScore: string | number) {
+  if (typeof statusOrScore === "string") {
+    if (statusOrScore === "hot") return "bg-score-hot/10 border-score-hot/30"
+    if (statusOrScore === "warm") return "bg-score-warm/10 border-score-warm/30"
+    return "bg-score-cool/10 border-score-cool/30"
+  }
+  if (statusOrScore >= 80) return "bg-score-hot/10 border-score-hot/30"
+  if (statusOrScore >= 60) return "bg-score-warm/10 border-score-warm/30"
   return "bg-score-cool/10 border-score-cool/30"
 }
 
-function getScoreIcon(score: number) {
-  if (score >= 80) return Flame
-  if (score >= 60) return Zap
+function getScoreIcon(statusOrScore: string | number) {
+  if (typeof statusOrScore === "string") {
+    if (statusOrScore === "hot") return Flame
+    if (statusOrScore === "warm") return Zap
+    return Snowflake
+  }
+  if (statusOrScore >= 80) return Flame
+  if (statusOrScore >= 60) return Zap
   return Snowflake
 }
 
@@ -289,7 +304,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
           {/* Lead cards */}
           {!loading && !fetchError &&
             filteredLeads.map((lead) => {
-              const ScoreIcon = getScoreIcon(lead.score)
+              const ScoreIcon = getScoreIcon(lead.status ?? lead.score)
               const isSelected = selectedLead?.id === lead.id
               const isResearching = researchingId === lead.id
 
@@ -309,11 +324,11 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                     <div
                       className={cn(
                         "flex size-10 shrink-0 items-center justify-center rounded-lg border",
-                        getScoreBg(lead.score)
+                        getScoreBg(lead.status ?? lead.score)
                       )}
                     >
                       <ScoreIcon
-                        className={cn("size-5", getScoreColor(lead.score))}
+                        className={cn("size-5", getScoreColor(lead.status ?? lead.score))}
                       />
                     </div>
 
@@ -328,7 +343,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                             "font-mono text-sm font-bold",
                             lead.score === 0
                               ? "text-muted-foreground"
-                              : getScoreColor(lead.score)
+                              : getScoreColor(lead.status ?? lead.score)
                           )}
                         >
                           {lead.score === 0 ? "—" : `${lead.score}%`}
