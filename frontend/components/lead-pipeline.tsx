@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { useState, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
@@ -152,16 +152,53 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
   }
 
   const filteredLeads = leads.filter((lead) => {
-    if (filter === "all") return true
-    if (filter === "hot") return lead.score >= 80
-    if (filter === "warm") return lead.score >= 60 && lead.score < 80
-    return lead.score < 60
-  })
+    if (filter === "all") return true;
+    if (filter === "hot") return lead.status === "hot";
+    if (filter === "warm") return lead.status === "warm";
+    return lead.status === "cool";
+  });
 
   const stats = {
-    hot: leads.filter((l) => l.score >= 80).length,
-    warm: leads.filter((l) => l.score >= 60 && l.score < 80).length,
-    cool: leads.filter((l) => l.score < 60).length,
+    hot: leads.filter((l) => l.status === "hot").length,
+    warm: leads.filter((l) => l.status === "warm").length,
+    cool: leads.filter((l) => l.status === "cool").length,
+  };
+
+  function getScoreColor(statusOrScore: string | number) {
+    if (typeof statusOrScore === "string") {
+      if (statusOrScore === "hot") return "text-score-hot";
+      if (statusOrScore === "warm") return "text-score-warm";
+      return "text-score-cool";
+    }
+    const score = Number(statusOrScore);
+    if (score >= 80) return "text-score-hot";
+    if (score >= 60) return "text-score-warm";
+    return "text-score-cool";
+  }
+
+  function getScoreBg(statusOrScore: string | number) {
+    if (typeof statusOrScore === "string") {
+      if (statusOrScore === "hot") return "bg-score-hot/10 border-score-hot/30";
+      if (statusOrScore === "warm")
+        return "bg-score-warm/10 border-score-warm/30";
+      return "bg-score-cool/10 border-score-cool/30";
+    }
+    const score = Number(statusOrScore);
+    if (score >= 80) return "bg-score-hot/10 border-score-hot/30";
+    if (score >= 60) return "bg-score-warm/10 border-score-warm/30";
+    return "bg-score-cool/10 border-score-cool/30";
+  }
+
+  function getScoreIcon(statusOrScore: string | number) {
+    if (typeof statusOrScore === "string") {
+      if (statusOrScore === "hot") return Flame;
+      if (statusOrScore === "warm") return Zap;
+      return Snowflake;
+    }
+    const score = Number(statusOrScore);
+    if (score >= 80) return Flame;
+    if (score >= 60) return Zap;
+    return Snowflake;
   }
 
   return (
@@ -205,7 +242,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
               "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
               filter === "all"
                 ? "bg-secondary text-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             All
@@ -216,7 +253,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
               "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
               filter === "hot"
                 ? "bg-score-hot/20 text-score-hot"
-                : "text-muted-foreground hover:text-score-hot"
+                : "text-muted-foreground hover:text-score-hot",
             )}
           >
             <Flame className="size-3" />
@@ -228,7 +265,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
               "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
               filter === "warm"
                 ? "bg-score-warm/20 text-score-warm"
-                : "text-muted-foreground hover:text-score-warm"
+                : "text-muted-foreground hover:text-score-warm",
             )}
           >
             <Zap className="size-3" />
@@ -240,7 +277,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
               "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
               filter === "cool"
                 ? "bg-score-cool/20 text-score-cool"
-                : "text-muted-foreground hover:text-score-cool"
+                : "text-muted-foreground hover:text-score-cool",
             )}
           >
             <Snowflake className="size-3" />
@@ -412,6 +449,6 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
         </div>
       </ScrollArea>
     </div>
-  )
+  );
 }
 

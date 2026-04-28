@@ -17,6 +17,8 @@ services:
       context: ./core-api
       dockerfile: Dockerfile
     container_name: crm-core-api
+    volumes: # <--- ADAUGĂ RÂNDUL ĂSTA
+      - ./core-api:/app
     ports:
       - "8000:8000"
     environment:
@@ -80,7 +82,6 @@ services:
 networks:
   crm-network:
     driver: bridge
-
 
 volumes:
   postgres_data:

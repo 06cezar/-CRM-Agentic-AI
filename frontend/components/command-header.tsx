@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -68,12 +68,57 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
   }
 
   const initials = user?.full_name
-    ? user.full_name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase()
-    : "?"
+    ? user.full_name
+        .split(" ")
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "?";
 
   async function handleLogout() {
-    await api.logout()
-    router.push("/login")
+    try {
+      await api.logout();
+    } catch (err) {
+      // ignore errors from server logout, still clear local state
+      console.warn("Logout failed on server:", err);
+    }
+    try {
+      localStorage.removeItem("token");
+    } catch {}
+    router.push("/login");
+  }
+
+  async function handleAddLead() {
+    try {
+      const name = window.prompt("Lead name:");
+      if (!name) return;
+      const email = window.prompt("Lead email:") || "";
+      const company = window.prompt("Company:") || "";
+      const intent = parseFloat(window.prompt("Intent score (0-100):") || "0");
+      const deal = parseFloat(window.prompt("Deal value (number):") || "0");
+      const status = (
+        window.prompt("Status (hot, warm, cool):") || ""
+      ).toLowerCase();
+
+      const payload = {
+        name,
+        email,
+        company,
+        intent_score: Number.isFinite(intent) ? intent : 0,
+        deal_value: Number.isFinite(deal) ? deal : 0,
+        status: status || undefined,
+      };
+
+      await api.createLead(payload);
+      // refresh UI
+      router.refresh();
+      // optionally close any open menus
+      setOpen(false);
+    } catch (err) {
+      console.error("Add lead failed", err);
+      alert("Failed to add lead");
+    }
   }
 
   return (
@@ -231,24 +276,33 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
             variant="ghost"
             size="sm"
             className="flex gap-2"
-            onClick={() => setOpen(o => !o)}
+            onClick={() => setOpen((o) => !o)}
           >
             <div className="flex size-6 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
               {initials}
             </div>
-            <span className="hidden sm:block text-sm">{user?.full_name ?? "…"}</span>
+            <span className="hidden sm:block text-sm">
+              {user?.full_name ?? "…"}
+            </span>
             <ChevronDown className="size-3 text-muted-foreground" />
           </Button>
 
           {open && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setOpen(false)}
+              />
               <div className="absolute right-0 top-10 z-20 w-44 rounded-lg border border-border bg-card shadow-lg py-1">
                 {user && (
                   <>
                     <div className="px-3 py-2 border-b border-border">
-                      <p className="text-xs font-medium text-foreground truncate">{user.full_name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                      <p className="text-xs font-medium text-foreground truncate">
+                        {user.full_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {user.email}
+                      </p>
                     </div>
                   </>
                 )}
@@ -265,5 +319,5 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
         </div>
       </div>
     </header>
-  )
+  );
 }
