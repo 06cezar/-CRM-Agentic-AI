@@ -21,6 +21,7 @@ docs/
 
 # Claude Code local settings
 .claude/
+.mcp.json
 
 # Presentations & generated slide assets
 presentations/
