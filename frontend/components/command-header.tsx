@@ -108,6 +108,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
             AI processed{" "}
+
             <span className="font-mono text-foreground">
               {stats ? stats.ai_actions_today : "—"}
             </span>{" "}
