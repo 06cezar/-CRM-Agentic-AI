@@ -3,11 +3,12 @@ import json
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from app.models import User
+from app.models import ConnectedAccount
 from app.config import settings
 
 # SCOPES defineste exact ce are voie sa faca aplicatia ta in contul userului. 
-SCOPES = ['https://www.googleapis.com/auth/gmail.modify']
+SCOPES = ['https://www.googleapis.com/auth/gmail.modify','https://www.googleapis.com/auth/userinfo.email', # <--- Permisiune pentru email
+    'openid']
 REDIRECT_URI = f"{settings.frontend_url}/api/auth/google/callback"
 
 def get_google_auth_url():
@@ -25,11 +26,11 @@ def get_google_auth_url():
     )
     return auth_url, flow.code_verifier
 
-def get_gmail_service(user: User):
+def get_gmail_service(account: ConnectedAccount):
     """
     Foloseste token-ul din baza de date pentru a crea un client Google gata de folosire.
     """
-    if not user.google_refresh_token:
+    if not account or not account.refresh_token:
         return None
         
     # Citim credentialele folosind calea din fisierul de configurare
@@ -38,7 +39,7 @@ def get_gmail_service(user: User):
     
     creds = Credentials.from_authorized_user_info(
         info={
-            "refresh_token": user.google_refresh_token,
+            "refresh_token": account.refresh_token,
             "client_id": client_config["web"]["client_id"],
             "client_secret": client_config["web"]["client_secret"],
         },

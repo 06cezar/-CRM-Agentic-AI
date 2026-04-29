@@ -2,10 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 from google_auth_oauthlib.flow import Flow
 from app.database import get_db
-from app.models import User
+from app.models import ConnectedAccount, User
 from app.google_auth import get_google_auth_url, SCOPES
 from app.auth import get_current_user
 from app.config import settings
+from googleapiclient.discovery import build
 
 router = APIRouter(prefix="/api/auth/google", tags=["Google Authentication"])
 REDIRECT_URI = f"{settings.frontend_url}/api/auth/google/callback"
@@ -45,7 +46,7 @@ def google_callback(
 
     try:
         code_verifier = request.cookies.get("code_verifier")
-        print(f"==== PAROLA EXTRASA DIN COOKIE ESTE: {code_verifier} ====")
+        
         flow = Flow.from_client_secrets_file(
             settings.google_secrets_path,
             scopes=SCOPES,
@@ -55,13 +56,44 @@ def google_callback(
         # Schimbam codul temporar primit de la Google pe token-uri reale de acces
         flow.fetch_token(code=code, code_verifier=code_verifier)
         credentials = flow.credentials
-
+        user_info_service = build('oauth2', 'v2', credentials=credentials)
+        user_info = user_info_service.userinfo().get().execute()
+        google_email = user_info.get("email")
+        if not google_email:
+            raise HTTPException(status_code=400, detail="Nu am putut obtine email-ul de Google")
         # Salvam Refresh Token-ul in Postgres.
-        if credentials.refresh_token:
-            current_user.google_refresh_token = credentials.refresh_token
-            db.commit()
+        account = db.query(ConnectedAccount).filter(
+            ConnectedAccount.user_id == current_user.id,
+            ConnectedAccount.email == google_email
+        ).first()
+        
+        if not account:
+            """Daca nu avem deja un cont conectat cu acest email, cream unul nou."""
+            if not credentials.refresh_token:
+                # Google trimite refresh_token doar prima data cand user-ul da accept
+                # Daca lipseste la o reconectare, inseamna ca trebuie sa revoci accesul din Google Settings
+                raise HTTPException(status_code=400, detail="Lipseste Refresh Token. Revoca accesul aplicatiei din setarile Google si incearca iar.")
+            account = ConnectedAccount(
+                user_id=current_user.id,
+                provider="google",
+                email=google_email,
+                refresh_token=credentials.refresh_token
+            )
+            db.add(account)
+        else:
+            # Daca exista deja, actualizam refresh_token-ul daca Google ni l-a trimis din nou
+            if credentials.refresh_token:
+                account.refresh_token = credentials.refresh_token
+        
+        db.commit()
 
-        return {"status": "success", "message": "Contul de Gmail a fost conectat si token-ul a fost salvat."}
+        return {
+            "status": "success", 
+            "message": f"Contul {google_email} a fost conectat cu succes.",
+            "google_email": google_email
+        }
         
     except Exception as e:
+        db.rollback()
+        print(f"Eroare Callback: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Eroare la procesarea callback-ului: {str(e)}")
