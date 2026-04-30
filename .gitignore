@@ -10,7 +10,8 @@ next.user-config.*
 
 # Environment variables
 .env*.local
-
+.env
+*/.env
 # Common ignores
 node_modules/
 .next/
@@ -48,3 +49,4 @@ core-api/secrets
 secrets
 secrets/*
 core-api/secrets/*
+

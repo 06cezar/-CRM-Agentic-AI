@@ -2,24 +2,8 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { api } from "@/lib/api"
+import { X } from "lucide-react"
 
 interface AddLeadModalProps {
   open: boolean
@@ -100,20 +84,26 @@ export function AddLeadModal({ open, onClose, onSuccess }: AddLeadModalProps) {
     onClose()
   }
 
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add New Lead</DialogTitle>
-        </DialogHeader>
+  if (!open) return null
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h2 className="text-lg font-semibold">Add New Lead</h2>
+          <button onClick={handleClose} className="p-1 hover:bg-accent rounded-md transition-colors">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             {/* Name */}
             <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="name">Full Name *</Label>
-              <Input
+              <label htmlFor="name" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Full Name *</label>
+              <input
                 id="name"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="Maria Ionescu"
                 value={form.name}
                 onChange={(e) => set("name", e.target.value)}
@@ -123,9 +113,10 @@ export function AddLeadModal({ open, onClose, onSuccess }: AddLeadModalProps) {
 
             {/* Company */}
             <div className="space-y-1.5">
-              <Label htmlFor="company">Company *</Label>
-              <Input
+              <label htmlFor="company" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Company *</label>
+              <input
                 id="company"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="Acme Corp"
                 value={form.company}
                 onChange={(e) => set("company", e.target.value)}
@@ -135,9 +126,10 @@ export function AddLeadModal({ open, onClose, onSuccess }: AddLeadModalProps) {
 
             {/* Role */}
             <div className="space-y-1.5">
-              <Label htmlFor="role">Role *</Label>
-              <Input
+              <label htmlFor="role" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Role *</label>
+              <input
                 id="role"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="CTO"
                 value={form.role}
                 onChange={(e) => set("role", e.target.value)}
@@ -147,10 +139,11 @@ export function AddLeadModal({ open, onClose, onSuccess }: AddLeadModalProps) {
 
             {/* Email */}
             <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="email">Email *</Label>
-              <Input
+              <label htmlFor="email" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Email *</label>
+              <input
                 id="email"
                 type="email"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="maria@acme.ro"
                 value={form.email}
                 onChange={(e) => set("email", e.target.value)}
@@ -160,9 +153,10 @@ export function AddLeadModal({ open, onClose, onSuccess }: AddLeadModalProps) {
 
             {/* Phone */}
             <div className="space-y-1.5">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
+              <label htmlFor="phone" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Phone</label>
+              <input
                 id="phone"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="+40 721 000 000"
                 value={form.phone}
                 onChange={(e) => set("phone", e.target.value)}
@@ -171,10 +165,11 @@ export function AddLeadModal({ open, onClose, onSuccess }: AddLeadModalProps) {
 
             {/* Deal Value */}
             <div className="space-y-1.5">
-              <Label htmlFor="deal_value">Deal Value</Label>
-              <Input
+              <label htmlFor="deal_value" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Deal Value</label>
+              <input
                 id="deal_value"
                 type="number"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="45000"
                 value={form.deal_value}
                 onChange={(e) => set("deal_value", e.target.value)}
@@ -183,41 +178,40 @@ export function AddLeadModal({ open, onClose, onSuccess }: AddLeadModalProps) {
 
             {/* Currency */}
             <div className="space-y-1.5">
-              <Label>Currency</Label>
-              <Select value={form.currency} onValueChange={(v) => set("currency", v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="EUR">EUR €</SelectItem>
-                  <SelectItem value="USD">USD $</SelectItem>
-                  <SelectItem value="GBP">GBP £</SelectItem>
-                  <SelectItem value="RON">RON</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Currency</label>
+              <select 
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={form.currency} 
+                onChange={(e) => set("currency", e.target.value)}
+              >
+                <option value="EUR">EUR €</option>
+                <option value="USD">USD $</option>
+                <option value="GBP">GBP £</option>
+                <option value="RON">RON</option>
+              </select>
             </div>
 
             {/* Status */}
             <div className="space-y-1.5">
-              <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => set("status", v)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="contacted">Contacted</SelectItem>
-                  <SelectItem value="qualified">Qualified</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Status</label>
+              <select 
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={form.status} 
+                onChange={(e) => set("status", e.target.value)}
+              >
+                <option value="new">New</option>
+                <option value="contacted">Contacted</option>
+                <option value="qualified">Qualified</option>
+                <option value="closed">Closed</option>
+              </select>
             </div>
 
             {/* Last Activity */}
             <div className="col-span-2 space-y-1.5">
-              <Label htmlFor="last_activity">Last Activity</Label>
-              <Input
+              <label htmlFor="last_activity" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Last Activity</label>
+              <input
                 id="last_activity"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="Viewed pricing page 3x this week"
                 value={form.last_activity_description}
                 onChange={(e) => set("last_activity_description", e.target.value)}
@@ -229,16 +223,25 @@ export function AddLeadModal({ open, onClose, onSuccess }: AddLeadModalProps) {
             <p className="text-sm text-destructive">{error}</p>
           )}
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose} disabled={loading}>
+          <div className="flex justify-end gap-2 pt-4 border-t border-border mt-4">
+            <button 
+              type="button" 
+              onClick={handleClose} 
+              disabled={loading}
+              className="h-9 px-4 py-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+            >
               Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
+            </button>
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="h-9 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+            >
               {loading ? "Creating…" : "Add Lead"}
-            </Button>
-          </DialogFooter>
+            </button>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   )
 }

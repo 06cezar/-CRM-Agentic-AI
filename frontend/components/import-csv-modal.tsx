@@ -2,14 +2,6 @@
 
 import { useState, useRef } from "react"
 import { toast } from "sonner"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 import { Upload, FileText, CheckCircle, AlertCircle, X } from "lucide-react"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
@@ -95,14 +87,19 @@ export function ImportCsvModal({ open, onClose, onSuccess }: ImportCsvModalProps
     onClose()
   }
 
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Import CSV</DialogTitle>
-        </DialogHeader>
+  if (!open) return null
 
-        <div className="space-y-4">
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h2 className="text-lg font-semibold">Import CSV</h2>
+          <button onClick={handleClose} className="p-1 hover:bg-accent rounded-md transition-colors">
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
           {/* Format hint */}
           <p className="text-xs text-muted-foreground">
             Accepts exports from <strong>LinkedIn</strong>, <strong>HubSpot</strong>, <strong>Excel</strong> or any CSV with columns:{" "}
@@ -178,19 +175,27 @@ export function ImportCsvModal({ open, onClose, onSuccess }: ImportCsvModalProps
           {error && (
             <p className="text-sm text-destructive">{error}</p>
           )}
-        </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={loading}>
-            {result ? "Close" : "Cancel"}
-          </Button>
-          {!result && (
-            <Button onClick={handleImport} disabled={!file || loading}>
-              {loading ? "Importing…" : "Import"}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <div className="flex justify-end gap-2 pt-4 border-t border-border mt-4">
+            <button 
+              onClick={handleClose} 
+              disabled={loading}
+              className="h-9 px-4 py-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              {result ? "Close" : "Cancel"}
+            </button>
+            {!result && (
+              <button 
+                onClick={handleImport} 
+                disabled={!file || loading}
+                className="h-9 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {loading ? "Importing…" : "Import"}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
