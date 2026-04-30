@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, func
+from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, func, BigInteger, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -12,7 +13,21 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(String, default="sales_rep", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_verified = Column(Boolean, default=False)
+    connected_accounts = relationship("ConnectedAccount", back_populates="owner")
 
+class ConnectedAccount(Base):
+    __tablename__ = "connected_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    provider = Column(String, nullable=False, default="google")  # ex: "google"
+    email = Column(String, index=True)
+    refresh_token = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_history_id = Column(BigInteger, nullable=True)
+    is_watching = Column(Boolean, default=False)
+    owner = relationship("User", back_populates="connected_accounts")
 
 class Lead(Base):
     __tablename__ = "leads"
