@@ -15,8 +15,9 @@ REDIRECT_URI = f"{settings.frontend_url}/api/auth/google/callback"
 
 def get_google_auth_url():
     """Genereaza link-ul pe care da click utilizatorul pentru a se loga cu Google."""
-    flow = Flow.from_client_secrets_file(
-        settings.google_secrets_path,
+    client_config = json.loads(settings.google_credentials_json)
+    flow = Flow.from_client_config(
+        client_config,
         scopes=SCOPES,
         redirect_uri=REDIRECT_URI
     )
@@ -42,15 +43,14 @@ def get_gmail_service(account: ConnectedAccount):
         return None
         
     try:
-        with open(settings.google_secrets_path, 'r') as file:
-            client_config = json.load(file)
+        client_config = json.loads(settings.google_credentials_json)
             
         # DETECTARE AUTOMATĂ: Verificăm dacă avem "web" sau "installed"
         # Aici era problema ta (KeyError)
         root_key = "web" if "web" in client_config else "installed"
         
         if root_key not in client_config:
-            print(f"Eroare: Fișierul {settings.google_secrets_path} nu are o structură validă.")
+            print(f"Eroare: Configurația Google nu are o structură validă.")
             return None
 
         # Extragem datele dinamice
@@ -74,8 +74,8 @@ def get_gmail_service(account: ConnectedAccount):
 
         service = build('gmail', 'v1', credentials=creds)
         return service
-    except FileNotFoundError:
-        print(f"Eroare: Nu am găsit fișierul de secrete la calea: {settings.google_secrets_path}")
+    except json.JSONDecodeError:
+        print(f"Eroare: Variabila google_credentials_json nu conține un JSON valid.")
         return None
     except Exception as e:
         print(f"Eroare neprevăzută la crearea serviciului Gmail: {e}")

@@ -46,8 +46,9 @@ def google_callback(
     try:
         code_verifier = request.cookies.get("code_verifier")
         
-        flow = Flow.from_client_secrets_file(
-            settings.google_secrets_path,
+        client_config = json.loads(settings.google_credentials_json)
+        flow = Flow.from_client_config(
+            client_config,
             scopes=SCOPES,
             redirect_uri=REDIRECT_URI
         )

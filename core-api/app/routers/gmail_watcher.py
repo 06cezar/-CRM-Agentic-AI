@@ -55,6 +55,49 @@ def activate_gmail_watch(payload: WatchToggleRequest, db: Session = Depends(get_
     return {"message": "Gmail watch set up successfully", "historyId": history_id}
 
 
+@router.get("/status/{account_id}")
+def get_watch_status(account_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Verifică statusul de monitorizare al unui cont.
+    Nu modifică nicio stare, doar returnează valoarea curentă din DB.
+    """
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    account = db.query(ConnectedAccount).filter(
+        ConnectedAccount.id == account_id,
+        ConnectedAccount.user_id == current_user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    return {"id": account.id, "is_watching": account.is_watching}
+
+
+@router.post("/set-status")
+def set_watch_status(payload: WatchToggleRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """
+    Actualizează statusul de monitorizare în baza de date.
+    Creat ca funcție nouă pentru a nu modifica logica existentă de /watch.
+    """
+    if not current_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    account = db.query(ConnectedAccount).filter(
+        ConnectedAccount.id == payload.account_id,
+        ConnectedAccount.user_id == current_user.id
+    ).first()
+    
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    account.is_watching = payload.active
+    db.commit()
+    
+    return {"id": account.id, "is_watching": account.is_watching}
+
+
 @router.post("/webhook")
 async def gmail_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # 1. Primim pachetul de la Pub/Sub
