@@ -3,10 +3,12 @@ from sqlalchemy.orm import Session
 from google_auth_oauthlib.flow import Flow
 from app.database import get_db
 from app.models import ConnectedAccount, User
-from app.google_auth import get_google_auth_url, SCOPES
+from app.google_auth import get_connected_accounts_by_user_id, get_google_auth_url, SCOPES
 from app.auth import get_current_user
 from app.config import settings
 from googleapiclient.discovery import build
+import base64
+import json
 
 router = APIRouter(prefix="/api/auth/google", tags=["Google Authentication"])
 REDIRECT_URI = f"{settings.frontend_url}/api/auth/google/callback"
@@ -36,11 +38,8 @@ def google_callback(
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-        
-):
-    """
-    Dupa logare, Google face redirect inapoi aici, atasand parametrul ?code=...
-    """
+    ):
+
     if not current_user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -87,6 +86,7 @@ def google_callback(
         
         db.commit()
 
+
         return {
             "status": "success", 
             "message": f"Contul {google_email} a fost conectat cu succes.",
@@ -97,3 +97,8 @@ def google_callback(
         db.rollback()
         print(f"Eroare Callback: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Eroare la procesarea callback-ului: {str(e)}")
+    
+@router.get("/get_connected_accounts")
+def get_connected_accounts(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    accounts = get_connected_accounts_by_user_id(current_user.id)
+    return [{"id": acc.id, "email": acc.email, "provider": acc.provider, "is_watching": acc.is_watching} for acc in accounts]

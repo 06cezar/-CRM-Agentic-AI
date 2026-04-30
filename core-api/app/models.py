@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, func, BigInteger
+from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, func, BigInteger, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -26,6 +26,7 @@ class ConnectedAccount(Base):
     refresh_token = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     last_history_id = Column(BigInteger, nullable=True)
+    is_watching = Column(Boolean, default=False)
     owner = relationship("User", back_populates="connected_accounts")
 
 class Lead(Base):

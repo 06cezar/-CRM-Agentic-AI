@@ -1,12 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, leads, activity, stats, google_auth
+from app.routers import auth, leads, activity, stats, google_auth, gmail_watcher
 
 app = FastAPI(title="CRM Core API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000",
+                   "https://gills-skimming-slick.ngrok-free.dev"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -17,6 +18,7 @@ app.include_router(leads.router)
 app.include_router(activity.router)
 app.include_router(stats.router)
 app.include_router(google_auth.router)
+app.include_router(gmail_watcher.router)
 
 
 @app.get("/")
