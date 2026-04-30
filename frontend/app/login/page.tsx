@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Cpu, AlertCircle } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 import { useEffect } from "react"
@@ -76,9 +75,14 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide" htmlFor="password">
-              Password
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide" htmlFor="password">
+                Password
+              </label>
+              <Link href="/forgot-password" size="sm" className="text-xs text-primary hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <input
               id="password"
               type="password"
@@ -97,14 +101,18 @@ export default function LoginPage() {
             </div>
           )}
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full h-10 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          >
             {loading ? (
-              <span className="flex items-center gap-2">
+              <span className="flex items-center justify-center gap-2">
                 <span className="size-4 rounded-full border-2 border-primary-foreground border-t-transparent animate-spin" />
                 Signing in…
               </span>
             ) : "Sign in"}
-          </Button>
+          </button>
         </form>
 
         <p className="text-center text-xs text-muted-foreground">

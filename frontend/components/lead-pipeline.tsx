@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   TrendingUp,
   Building2,
@@ -165,9 +163,9 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-border px-4 py-3">
+      <div className="border-b border-border px-4 py-3 shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex size-7 items-center justify-center rounded-md bg-primary/10">
@@ -198,11 +196,11 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
         </div>
 
         {/* Score filter tabs */}
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           <button
             onClick={() => setFilter("all")}
             className={cn(
-              "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              "rounded-md px-2.5 py-1 text-xs font-medium transition-colors shrink-0",
               filter === "all"
                 ? "bg-secondary text-foreground"
                 : "text-muted-foreground hover:text-foreground"
@@ -213,7 +211,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
           <button
             onClick={() => setFilter("hot")}
             className={cn(
-              "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors shrink-0",
               filter === "hot"
                 ? "bg-score-hot/20 text-score-hot"
                 : "text-muted-foreground hover:text-score-hot"
@@ -225,7 +223,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
           <button
             onClick={() => setFilter("warm")}
             className={cn(
-              "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors shrink-0",
               filter === "warm"
                 ? "bg-score-warm/20 text-score-warm"
                 : "text-muted-foreground hover:text-score-warm"
@@ -237,7 +235,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
           <button
             onClick={() => setFilter("cool")}
             className={cn(
-              "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              "flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors shrink-0",
               filter === "cool"
                 ? "bg-score-cool/20 text-score-cool"
                 : "text-muted-foreground hover:text-score-cool"
@@ -250,8 +248,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
       </div>
 
       {/* Lead list */}
-      <ScrollArea className="flex-1">
-        <div className="space-y-1 p-2">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-1">
           {/* Loading skeleton */}
           {loading &&
             Array.from({ length: 4 }).map((_, i) => (
@@ -362,13 +359,12 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                       </p>
                       <div className="mt-2 flex flex-wrap items-center gap-1">
                         {lead.signals.map((signal) => (
-                          <Badge
+                          <span
                             key={signal}
-                            variant="outline"
-                            className="text-[10px] px-1.5 py-0 h-5 border-border/50"
+                            className="inline-flex items-center rounded-full border border-border/50 px-1.5 py-0 text-[10px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 h-5"
                           >
                             {signal}
-                          </Badge>
+                          </span>
                         ))}
                         {/* Research button — apare când nu e scor sau la hover */}
                         <button
@@ -409,9 +405,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                 </button>
               )
             })}
-        </div>
-      </ScrollArea>
+      </div>
     </div>
   )
 }
-

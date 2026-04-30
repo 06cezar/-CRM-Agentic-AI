@@ -19,9 +19,9 @@ services:
     container_name: crm-core-api
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://crm_user:crm_password@db:5432/crm_db
-      - AI_SERVICE_URL=http://ai-service:8000
+    
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
@@ -76,6 +76,19 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: always
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
+    command:
+      - "http"
+      - "--url=gills-skimming-slick.ngrok-free.dev"
+      - "core-api:8000" # Spunem ngrok sa trimita traficul catre containerul core-api
+    ports:
+      - "4040:4040" # Interfata web de inspectie ngrok
+    depends_on:
+      - core-api
 
 networks:
   crm-network:
