@@ -3,6 +3,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: runner
     container_name: crm-frontend
     ports:
       - "3000:3000"
