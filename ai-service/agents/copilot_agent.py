@@ -109,33 +109,64 @@ def _build_user_prompt(lead: dict) -> str:
 
 def _handle_tool_call(tool_name: str, arguments: dict, state: dict) -> str:
     """Process a tool call and update agent state."""
+    # Safe nested object extraction — llama3.2:3b uneori returnează un string
+    # sub cheia "object" în loc de dict, deci verificăm tipul explicit
+    obj = arguments.get("object")
+    obj = obj if isinstance(obj, dict) else {}
+
     if tool_name == "set_winning_argument":
-        raw = arguments.get("argument") or (arguments.get("object") or {}).get("argument", "")
-        raw_conf = arguments.get("confidence") or (arguments.get("object") or {}).get("confidence", 0.5)
-        state["winning_argument"] = str(raw).strip()
+        raw = arguments.get("argument") or obj.get("argument", "")
+        raw_conf = arguments.get("confidence") or obj.get("confidence", 0.5)
+        raw_str = str(raw).strip()
+        # llama3.2:3b sometimes passes the schema definition as the value:
+        # {"type": "string", "description": "...", "value": "actual text"}
+        # Extract the real text from the "value" key if present.
+        try:
+            parsed = json.loads(raw_str)
+            if isinstance(parsed, dict):
+                extracted = (
+                    parsed.get("value") or
+                    parsed.get("argument") or
+                    parsed.get("text") or
+                    ""
+                )
+                # Only use extracted if non-empty; otherwise keep original raw_str
+                raw_str = str(extracted).strip() if extracted else raw_str
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+        state["winning_argument"] = raw_str
         state["confidence"] = max(0.0, min(1.0, float(raw_conf)))
         return json.dumps({"status": "ok"})
 
     if tool_name == "set_draft_message":
-        raw = arguments.get("message") or (arguments.get("object") or {}).get("message", "")
-        state["draft_message"] = str(raw).strip()
+        raw = arguments.get("message") or obj.get("message", "")
+        raw_str = str(raw).strip()
+        # Unele modele returnează emailul wrapped într-un JSON object
+        # ex: {"subject": "...", "body": "Hi Maria,...", "from": "[YOUR EMAIL]"}
+        # Extragem doar câmpul body/message/content dacă e cazul
+        try:
+            parsed = json.loads(raw_str)
+            if isinstance(parsed, dict):
+                raw_str = (
+                    parsed.get("body") or
+                    parsed.get("message") or
+                    parsed.get("content") or
+                    raw_str
+                )
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+        # Replace placeholder signatures that llama3.2:3b inserts
+        # (model consistently adds [YOUR NAME] / [YOUR EMAIL] in the sign-off)
+        raw_str = raw_str.replace("[YOUR NAME]", "Your Sales Team")
+        raw_str = raw_str.replace("[YOUR EMAIL]", "sales@company.com")
+        state["draft_message"] = raw_str
         return json.dumps({"status": "ok"})
 
     return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
 
-def run(lead: dict) -> dict:
-    """
-    Run the CopilotAgent for a lead.
-
-    Args:
-        lead: dict with lead fields including signals and intent_score from LeadResearchAgent
-
-    Returns:
-        dict with: winning_argument, draft_message, confidence
-    """
-    state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
-
+def _run_once(lead: dict, state: dict) -> None:
+    """Single attempt of the agent loop. Updates state in-place."""
     messages = [
         {"role": "system", "content": _build_system_prompt()},
         {"role": "user", "content": _build_user_prompt(lead)},
@@ -143,12 +174,25 @@ def run(lead: dict) -> dict:
 
     # ── Agent loop — max 6 iterations ────────────────────────────────────────
     for iteration in range(6):
+        both_done = bool(state["winning_argument"]) and bool(state["draft_message"])
+        if both_done:
+            break
+
+        # Force tool use until we have both outputs.
+        # llama3.2:3b sometimes ignores tools when using "auto", leaving outputs empty.
+        # When winning_argument is filled but draft_message is not, nudge the model.
+        if state["winning_argument"] and not state["draft_message"] and iteration >= 2:
+            messages.append({
+                "role": "user",
+                "content": "Good. Now call set_draft_message to write the personalized outreach email.",
+            })
+        tool_choice = "required"
         try:
             response = client.chat.completions.create(
                 model=OLLAMA_MODEL,
                 messages=messages,
                 tools=TOOLS,
-                tool_choice="auto",
+                tool_choice=tool_choice,
                 temperature=0.4,
             )
         except Exception as e:
@@ -176,6 +220,28 @@ def run(lead: dict) -> dict:
             continue
 
         break
+
+
+def run(lead: dict) -> dict:
+    """
+    Run the CopilotAgent for a lead, with up to 3 attempts on empty output.
+
+    Args:
+        lead: dict with lead fields including signals and intent_score from LeadResearchAgent
+
+    Returns:
+        dict with: winning_argument, draft_message, confidence
+    """
+    for attempt in range(3):
+        state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
+        _run_once(lead, state)
+        if state["winning_argument"] and state["draft_message"]:
+            break
+        if attempt < 2:
+            logger.warning(
+                f"Attempt {attempt + 1} produced incomplete output "
+                f"(wa={bool(state['winning_argument'])}, dm={bool(state['draft_message'])}), retrying..."
+            )
 
     return {
         "winning_argument": state["winning_argument"],

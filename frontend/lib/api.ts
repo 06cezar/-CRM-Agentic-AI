@@ -51,6 +51,14 @@ export interface StatsAPI {
   pipeline_value_raw: number
 }
 
+export interface CopilotAPI {
+  winning_argument: string
+  draft_message: string
+  confidence: number
+  generated_at: string
+  is_cached: boolean
+}
+
 // ── API client ────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -79,4 +87,11 @@ export const api = {
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   getStats: () => request<StatsAPI>("/stats"),
+
+  // ── Copilot ────────────────────────────────────────────────────────────────
+  getCopilot: (leadId: number) =>
+    request<CopilotAPI>(`/leads/${leadId}/copilot`),
+
+  regenerateCopilot: (leadId: number) =>
+    request<CopilotAPI>(`/leads/${leadId}/copilot/regenerate`, { method: "POST" }),
 }

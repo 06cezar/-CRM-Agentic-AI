@@ -30,9 +30,6 @@ export interface Lead {
   value: string
   lastActivity: string
   signals: string[]
-  // Copilot fields — rămân goale până la EPIC 6
-  winningArgument: string
-  draftMessage: string
 }
 
 // ── Mapare API → Lead UI ──────────────────────────────────────────────────────
@@ -49,8 +46,6 @@ function fromAPI(l: LeadAPI): Lead {
     value: l.deal_value_display ?? "—",
     lastActivity: l.last_activity_description ?? "No activity yet",
     signals: l.signals ?? [],
-    winningArgument: "",
-    draftMessage: "",
   }
 }
 
