@@ -113,7 +113,7 @@ def get_copilot(
     """
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
-        Lead.assigned_to == current_user.id,
+        (Lead.assigned_to == current_user.id) | (Lead.assigned_to == None),
     ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -156,7 +156,7 @@ def regenerate_copilot(
     """Forțează regenerarea copilot result, ignorând cache-ul existent."""
     lead = db.query(Lead).filter(
         Lead.id == lead_id,
-        Lead.assigned_to == current_user.id,
+        (Lead.assigned_to == current_user.id) | (Lead.assigned_to == None),
     ).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
