@@ -15,11 +15,13 @@ import {
   Keyboard,
   Info,
   UserCog,
+  Linkedin,
 } from "lucide-react"
 import { api, type StatsAPI, type ActivityAPI } from "@/lib/api"
 import { useAuth } from "@/hooks/useAuth"
 import { AddLeadModal } from "@/components/add-lead-modal"
 import { ImportCsvModal } from "@/components/import-csv-modal"
+import { LinkedInScraperModal } from "@/components/linkedin-scraper-modal"
 
 interface CommandHeaderProps {
   onLeadCreated?: () => void
@@ -31,6 +33,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
   const [open, setOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [scraperOpen, setScraperOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [notifications, setNotifications] = useState<ActivityAPI[]>([])
@@ -142,6 +145,13 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
           <Upload className="size-3.5" />
           Import CSV
         </button>
+        <button
+          className="hidden sm:flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+          onClick={() => setScraperOpen(true)}
+        >
+          <Linkedin className="size-3.5" />
+          Find Leads
+        </button>
         <AddLeadModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
@@ -150,6 +160,11 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
         <ImportCsvModal
           open={importOpen}
           onClose={() => setImportOpen(false)}
+          onSuccess={() => onLeadCreated?.()}
+        />
+        <LinkedInScraperModal
+          open={scraperOpen}
+          onClose={() => setScraperOpen(false)}
           onSuccess={() => onLeadCreated?.()}
         />
         {/* Bell */}

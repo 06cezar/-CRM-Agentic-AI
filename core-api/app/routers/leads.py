@@ -42,6 +42,7 @@ class LeadCreate(BaseModel):
     currency: str = "EUR"
     last_activity_description: Optional[str] = None
     status: str = "new"
+    linkedin_url: Optional[str] = None
 
 
 class LeadUpdate(BaseModel):
@@ -73,6 +74,7 @@ class LeadResponse(BaseModel):
     signals: list
     assigned_to: Optional[int]
     status: str
+    linkedin_url: Optional[str] = None
     created_at: datetime
 
     @computed_field

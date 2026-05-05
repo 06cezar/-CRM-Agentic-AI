@@ -20,12 +20,29 @@ services:
     container_name: crm-core-api
     ports:
       - "8000:8000"
-    
     env_file:
       - .env
+    environment:
+      - SCRAPER_SERVICE_URL=http://scraper-service:8002
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - crm-network
+    restart: unless-stopped
+
+  scraper-service:
+    build:
+      context: ./scraper-service
+      dockerfile: Dockerfile
+    container_name: crm-scraper-service
+    ports:
+      - "8002:8002"
+    environment:
+      - CORE_API_URL=http://core-api:8000
+      - INTERNAL_TOKEN=${INTERNAL_TOKEN}
+    depends_on:
+      - core-api
     networks:
       - crm-network
     restart: unless-stopped

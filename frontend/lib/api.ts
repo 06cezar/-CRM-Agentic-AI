@@ -51,6 +51,29 @@ export interface StatsAPI {
   pipeline_value_raw: number
 }
 
+export interface ScrapeJobAPI {
+  id: number
+  query: string
+  pages_requested: number
+  status: "pending" | "running" | "completed" | "failed"
+  scraped_count: number
+  leads_created: number
+  error_message: string | null
+  created_at: string
+  started_at: string | null
+  completed_at: string | null
+}
+
+export interface SearchQuerySuggestion {
+  query: string
+  reasoning: string
+  expected_title: string
+}
+
+export interface SearchQueryResponse {
+  queries: SearchQuerySuggestion[]
+}
+
 // ── API client ────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -88,4 +111,32 @@ export const api = {
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   getStats: () => request<StatsAPI>("/stats"),
+
+  // ── LinkedIn Scraper ───────────────────────────────────────────────────────
+  uploadLinkedInCookies: (cookiesJson: string) =>
+    request<{ status: string }>("/scraper/credentials", {
+      method: "POST",
+      body: JSON.stringify({ cookies_json: cookiesJson }),
+    }),
+
+  getLinkedInCredentialStatus: () =>
+    request<{ has_credentials: boolean }>("/scraper/credentials/status"),
+
+  deleteLinkedInCredentials: () =>
+    request<void>("/scraper/credentials", { method: "DELETE" }),
+
+  startScrapeJob: (query: string, pages: number) =>
+    request<ScrapeJobAPI>("/scraper/jobs", {
+      method: "POST",
+      body: JSON.stringify({ query, pages }),
+    }),
+
+  getScrapeJob: (jobId: number) =>
+    request<ScrapeJobAPI>(`/scraper/jobs/${jobId}`),
+
+  listScrapeJobs: () =>
+    request<ScrapeJobAPI[]>("/scraper/jobs"),
+
+  suggestSearchQueries: () =>
+    request<SearchQueryResponse>("/scraper/suggest-queries", { method: "POST" }),
 }
