@@ -123,14 +123,18 @@ def _extract_list(arguments: dict, key: str) -> list:
 
 def _handle_tool_call(tool_name: str, arguments: dict, state: dict) -> str:
     """Process a tool call and update agent state."""
+    # Safe nested object extraction — model uneori returnează {"object": {...}} sau {"object": "string"}
+    obj = arguments.get("object")
+    obj = obj if isinstance(obj, dict) else {}
+
     if tool_name == "extract_signals":
         state["signals"] = _extract_list(arguments, "signals")
         return json.dumps({"status": "ok", "signals_detected": len(state["signals"])})
 
     if tool_name == "score_intent":
-        raw_score = arguments.get("intent_score") or (arguments.get("object") or {}).get("intent_score", 50)
-        raw_conf = arguments.get("confidence") or (arguments.get("object") or {}).get("confidence", 0.5)
-        raw_reasoning = arguments.get("reasoning") or (arguments.get("object") or {}).get("reasoning", "")
+        raw_score = arguments.get("intent_score") or obj.get("intent_score", 50)
+        raw_conf = arguments.get("confidence") or obj.get("confidence", 0.5)
+        raw_reasoning = arguments.get("reasoning") or obj.get("reasoning", "")
         state["intent_score"] = max(0, min(100, int(raw_score)))
         state["reasoning"] = raw_reasoning
         state["confidence"] = max(0.0, min(1.0, float(raw_conf)))
@@ -139,31 +143,36 @@ def _handle_tool_call(tool_name: str, arguments: dict, state: dict) -> str:
     return json.dumps({"error": f"Unknown tool: {tool_name}"})
 
 
-def run(lead: dict) -> dict:
-    """
-    Run the LeadResearchAgent for a lead.
-
-    Args:
-        lead: dict with lead fields (name, company, role, etc.)
-
-    Returns:
-        dict with: intent_score, signals, summary, confidence
-    """
-    state = {"signals": [], "intent_score": 50, "reasoning": "", "confidence": 0.5}
-
+def _run_once(lead: dict, state: dict) -> None:
+    """Single attempt of the agent loop. Updates state in-place."""
     messages = [
         {"role": "system", "content": _build_system_prompt()},
         {"role": "user", "content": _build_user_prompt(lead)},
     ]
 
-    # ── Agent loop — max 6 iterations (tool use + final response) ───────────
+    # ── Agent loop — max 6 iterations ────────────────────────────────────────
     for iteration in range(6):
+        both_done = bool(state["signals"] or state["intent_score"] != 50) and state["intent_score"] != 50
+        # Considerăm done dacă score_intent a fost apelat (score != default 50 OR signals detectate + score setat)
+        signals_done = len(state["signals"]) > 0
+        score_done = state.get("_score_called", False)
+
+        if signals_done and score_done:
+            break
+
+        # Nudge dacă signals sunt setate dar score nu
+        if signals_done and not score_done and iteration >= 2:
+            messages.append({
+                "role": "user",
+                "content": "Good. Now call score_intent to assign an intent score based on these signals.",
+            })
+
         try:
             response = client.chat.completions.create(
                 model=OLLAMA_MODEL,
                 messages=messages,
                 tools=TOOLS,
-                tool_choice="auto",
+                tool_choice="required",
                 temperature=0.3,
             )
         except Exception as e:
@@ -172,7 +181,6 @@ def run(lead: dict) -> dict:
 
         message = response.choices[0].message
 
-        # If the model wants to call tools
         if message.tool_calls:
             messages.append(message)
             for tool_call in message.tool_calls:
@@ -182,6 +190,8 @@ def run(lead: dict) -> dict:
                     args = {}
 
                 result = _handle_tool_call(tool_call.function.name, args, state)
+                if tool_call.function.name == "score_intent":
+                    state["_score_called"] = True
                 logger.info(f"Tool called: {tool_call.function.name} → {result}")
 
                 messages.append({
@@ -189,10 +199,30 @@ def run(lead: dict) -> dict:
                     "tool_call_id": tool_call.id,
                     "content": result,
                 })
-            continue  # continue loop with tool results
+            continue
 
-        # Model finished — exit loop
         break
+
+
+def run(lead: dict) -> dict:
+    """
+    Run the LeadResearchAgent for a lead, cu până la 3 încercări.
+
+    Args:
+        lead: dict with lead fields (name, company, role, etc.)
+
+    Returns:
+        dict with: intent_score, signals, summary, confidence
+    """
+    for attempt in range(3):
+        state = {"signals": [], "intent_score": 50, "reasoning": "", "confidence": 0.5, "_score_called": False}
+        _run_once(lead, state)
+        if state["_score_called"]:
+            break
+        if attempt < 2:
+            logger.warning(
+                f"Attempt {attempt + 1} produced no score_intent call, retrying..."
+            )
 
     # ── Build summary ────────────────────────────────────────────────────────
     signals_text = ", ".join(state["signals"]) if state["signals"] else "no signals detected"

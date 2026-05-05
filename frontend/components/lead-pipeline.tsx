@@ -160,7 +160,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
       <div className="border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
@@ -245,7 +245,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
       </div>
 
       {/* Lead list */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-1 p-2">
           {/* Loading skeleton */}
           {loading &&

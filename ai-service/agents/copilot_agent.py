@@ -117,48 +117,73 @@ def _handle_tool_call(tool_name: str, arguments: dict, state: dict) -> str:
     if tool_name == "set_winning_argument":
         raw = arguments.get("argument") or obj.get("argument", "")
         raw_conf = arguments.get("confidence") or obj.get("confidence", 0.5)
-        raw_str = str(raw).strip()
-        # llama3.2:3b sometimes passes the schema definition as the value:
-        # {"type": "string", "description": "...", "value": "actual text"}
-        # Extract the real text from the "value" key if present.
-        try:
-            parsed = json.loads(raw_str)
-            if isinstance(parsed, dict):
-                extracted = (
-                    parsed.get("value") or
-                    parsed.get("argument") or
-                    parsed.get("text") or
-                    ""
-                )
-                # Only use extracted if non-empty; otherwise keep original raw_str
-                raw_str = str(extracted).strip() if extracted else raw_str
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass
+        # Dacă modelul pasează argument ca dict Python direct, extragem textul
+        if isinstance(raw, dict):
+            raw_str = (
+                raw.get("value") or
+                raw.get("argument") or
+                raw.get("text") or
+                ""
+            ).strip()
+        else:
+            raw_str = str(raw).strip()
+            # llama3.2:3b sometimes passes the schema definition as the value:
+            # {"type": "string", "description": "...", "value": "actual text"}
+            # Extract the real text from the "value" key if present.
+            try:
+                parsed = json.loads(raw_str)
+                if isinstance(parsed, dict):
+                    extracted = (
+                        parsed.get("value") or
+                        parsed.get("argument") or
+                        parsed.get("text") or
+                        ""
+                    )
+                    # Only use extracted if non-empty; otherwise keep original raw_str
+                    raw_str = str(extracted).strip() if extracted else raw_str
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
         state["winning_argument"] = raw_str
         state["confidence"] = max(0.0, min(1.0, float(raw_conf)))
         return json.dumps({"status": "ok"})
 
     if tool_name == "set_draft_message":
         raw = arguments.get("message") or obj.get("message", "")
-        raw_str = str(raw).strip()
-        # Unele modele returnează emailul wrapped într-un JSON object
-        # ex: {"subject": "...", "body": "Hi Maria,...", "from": "[YOUR EMAIL]"}
-        # Extragem doar câmpul body/message/content dacă e cazul
-        try:
-            parsed = json.loads(raw_str)
-            if isinstance(parsed, dict):
-                raw_str = (
-                    parsed.get("body") or
-                    parsed.get("message") or
-                    parsed.get("content") or
-                    raw_str
-                )
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass
-        # Replace placeholder signatures that llama3.2:3b inserts
-        # (model consistently adds [YOUR NAME] / [YOUR EMAIL] in the sign-off)
-        raw_str = raw_str.replace("[YOUR NAME]", "Your Sales Team")
-        raw_str = raw_str.replace("[YOUR EMAIL]", "sales@company.com")
+        # llama3.2:3b poate pasa message ca dict Python (nu string JSON).
+        # Dacă e dict, extragem body direct fără str() → json.loads() roundtrip.
+        if isinstance(raw, dict):
+            raw_str = (
+                raw.get("body") or
+                raw.get("message") or
+                raw.get("content") or
+                ""
+            ).strip()
+        else:
+            raw_str = str(raw).strip()
+            # Unele modele returnează emailul wrapped într-un JSON string
+            # ex: '{"subject": "...", "body": "Hi Maria,...", "from": "[YOUR EMAIL]"}'
+            # Extragem doar câmpul body/message/content dacă e cazul
+            try:
+                parsed = json.loads(raw_str)
+                if isinstance(parsed, dict):
+                    raw_str = (
+                        parsed.get("body") or
+                        parsed.get("message") or
+                        parsed.get("content") or
+                        raw_str
+                    )
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+        # Replace placeholder signatures (toate variantele de case)
+        for placeholder, replacement in [
+            ("[YOUR NAME]", "Your Sales Team"),
+            ("[Your Name]", "Your Sales Team"),
+            ("[your name]", "Your Sales Team"),
+            ("[YOUR EMAIL]", "sales@company.com"),
+            ("[Your Email]", "sales@company.com"),
+            ("[your email]", "sales@company.com"),
+        ]:
+            raw_str = raw_str.replace(placeholder, replacement)
         state["draft_message"] = raw_str
         return json.dumps({"status": "ok"})
 
