@@ -10,7 +10,8 @@ next.user-config.*
 
 # Environment variables
 .env*.local
-
+.env
+*/.env
 # Common ignores
 node_modules/
 .next/
@@ -42,3 +43,11 @@ __pycache__/
 
 # TypeScript build cache
 frontend/tsconfig.tsbuildinfo
+
+core-api/secrets/
+core-api/.env
+core-api/secrets
+secrets
+secrets/*
+core-api/secrets/*
+

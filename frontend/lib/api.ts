@@ -72,6 +72,15 @@ export const api = {
 
   me: () => request<{ id: number; email: string; full_name: string; role: string }>("/auth/me"),
 
+  verifyEmail: (token: string) =>
+    request<{ message: string }>("/auth/verify-email", { method: "POST", body: JSON.stringify({ token }) }),
+
+  forgotPassword: (email: string) =>
+    request<{ message: string }>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) }),
+
+  resetPassword: (token: string, new_password: string) =>
+    request<{ message: string }>("/auth/reset-password", { method: "POST", body: JSON.stringify({ token, new_password }) }),
+
   // ── Leads ──────────────────────────────────────────────────────────────────
   getLeads: () => request<LeadAPI[]>("/leads"),
 
@@ -94,4 +103,31 @@ export const api = {
 
   regenerateCopilot: (leadId: number) =>
     request<CopilotAPI>(`/leads/${leadId}/copilot/regenerate`, { method: "POST" }),
+  // ── LinkedIn Scraper ───────────────────────────────────────────────────────
+  uploadLinkedInCookies: (cookiesJson: string) =>
+    request<{ status: string }>("/scraper/credentials", {
+      method: "POST",
+      body: JSON.stringify({ cookies_json: cookiesJson }),
+    }),
+
+  getLinkedInCredentialStatus: () =>
+    request<{ has_credentials: boolean }>("/scraper/credentials/status"),
+
+  deleteLinkedInCredentials: () =>
+    request<void>("/scraper/credentials", { method: "DELETE" }),
+
+  startScrapeJob: (query: string, pages: number) =>
+    request<ScrapeJobAPI>("/scraper/jobs", {
+      method: "POST",
+      body: JSON.stringify({ query, pages }),
+    }),
+
+  getScrapeJob: (jobId: number) =>
+    request<ScrapeJobAPI>(`/scraper/jobs/${jobId}`),
+
+  listScrapeJobs: () =>
+    request<ScrapeJobAPI[]>("/scraper/jobs"),
+
+  suggestSearchQueries: () =>
+    request<SearchQueryResponse>("/scraper/suggest-queries", { method: "POST" }),
 }

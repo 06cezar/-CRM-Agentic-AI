@@ -10,3 +10,9 @@ venv/
 .git
 Dockerfile
 .dockerignore
+secrets/
+secrets/*
+core-api/secrets/
+core-api/.env
+core-api/secrets
+core-api/secrets/*

@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
 import {
   Cpu,
   Bell,
@@ -15,11 +14,14 @@ import {
   Github,
   Keyboard,
   Info,
+  UserCog,
+  Linkedin,
 } from "lucide-react"
 import { api, type StatsAPI, type ActivityAPI } from "@/lib/api"
 import { useAuth } from "@/hooks/useAuth"
 import { AddLeadModal } from "@/components/add-lead-modal"
 import { ImportCsvModal } from "@/components/import-csv-modal"
+import { LinkedInScraperModal } from "@/components/linkedin-scraper-modal"
 
 interface CommandHeaderProps {
   onLeadCreated?: () => void
@@ -31,6 +33,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
   const [open, setOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [scraperOpen, setScraperOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [notifications, setNotifications] = useState<ActivityAPI[]>([])
@@ -79,7 +82,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4">
       {/* Logo and title */}
-      <div className="flex items-center gap-3">
+      <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
         <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
           <Cpu className="size-5 text-primary" />
         </div>
@@ -91,7 +94,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
             AI-powered sales intelligence
           </p>
         </div>
-      </div>
+      </Link>
 
       {/* Center stats */}
       <div className="hidden md:flex items-center gap-6">
@@ -108,6 +111,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
             AI processed{" "}
+
             <span className="font-mono text-foreground">
               {stats ? stats.ai_actions_today : "—"}
             </span>{" "}
@@ -127,24 +131,27 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
 
       {/* Right actions */}
       <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="hidden sm:flex gap-1.5"
+        <button
+          className="hidden sm:flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
           onClick={() => setModalOpen(true)}
         >
           <Plus className="size-3.5" />
           Add Lead
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="hidden sm:flex gap-1.5 text-muted-foreground"
+        </button>
+        <button
+          className="hidden sm:flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
           onClick={() => setImportOpen(true)}
         >
           <Upload className="size-3.5" />
           Import CSV
-        </Button>
+        </button>
+        <button
+          className="hidden sm:flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+          onClick={() => setScraperOpen(true)}
+        >
+          <Linkedin className="size-3.5" />
+          Find Leads
+        </button>
         <AddLeadModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
@@ -155,16 +162,24 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
           onClose={() => setImportOpen(false)}
           onSuccess={() => onLeadCreated?.()}
         />
+        <LinkedInScraperModal
+          open={scraperOpen}
+          onClose={() => setScraperOpen(false)}
+          onSuccess={() => onLeadCreated?.()}
+        />
         {/* Bell */}
         <div className="relative">
-          <Button variant="ghost" size="icon-sm" className="relative" onClick={handleBellOpen}>
+          <button 
+            className="relative flex items-center justify-center size-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" 
+            onClick={handleBellOpen}
+          >
             <Bell className="size-4" />
             {notifications.length > 0 && (
               <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                 {notifications.length}
               </span>
             )}
-          </Button>
+          </button>
           {bellOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setBellOpen(false)} />
@@ -189,9 +204,12 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
 
         {/* Settings */}
         <div className="relative">
-          <Button variant="ghost" size="icon-sm" onClick={handleSettingsOpen}>
+          <button 
+            className="flex items-center justify-center size-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors" 
+            onClick={handleSettingsOpen}
+          >
             <Settings className="size-4" />
-          </Button>
+          </button>
           {settingsOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
@@ -199,6 +217,14 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
                 <div className="px-3 py-2 border-b border-border">
                   <p className="text-xs font-semibold text-foreground">Settings</p>
                 </div>
+                <Link
+                  href="/settings"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  onClick={() => setSettingsOpen(false)}
+                >
+                  <UserCog className="size-4" />
+                  General Settings
+                </Link>
                 <a
                   href="http://localhost:8000/docs"
                   target="_blank"
@@ -227,10 +253,8 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
         </div>
         <div className="ml-2 h-6 w-px bg-border hidden sm:block" />
         <div className="relative">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex gap-2"
+          <button
+            className="flex items-center gap-2 h-8 px-2 rounded-md hover:bg-accent transition-colors"
             onClick={() => setOpen(o => !o)}
           >
             <div className="flex size-6 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
@@ -238,7 +262,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
             </div>
             <span className="hidden sm:block text-sm">{user?.full_name ?? "…"}</span>
             <ChevronDown className="size-3 text-muted-foreground" />
-          </Button>
+          </button>
 
           {open && (
             <>

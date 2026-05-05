@@ -1,0 +1,80 @@
+# =========================
+# 1. Securitate & Secrete (CRITIC)
+# =========================
+.env
+.env.*
+*/.env
+secrets/
+core-api/secrets/
+*.pem
+*.key
+.npmrc
+
+# =========================
+# 2. Git & Versionare
+# =========================
+.git
+.gitignore
+
+# =========================
+# 3. Frontend (Node.js / Next.js)
+# =========================
+node_modules/
+.next/
+out/
+build/
+dist/
+npm-debug.log
+yarn-error.log
+frontend/tsconfig.tsbuildinfo
+next.user-config.*
+
+# =========================
+# 4. Backend (Python)
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+env.bak/
+venv.bak/
+.pytest_cache/
+
+# =========================
+# 5. OS & Editoare de cod
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =========================
+# 6. Tooling, Docs & Fisiere Specifice (v0, Claude, etc.)
+# =========================
+Dockerfile
+.dockerignore
+docker-compose*.yml
+.claude/
+.v0-trash/
+.vercel/
+.snowflake/
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+docs/
+
+# Prezentari si asset-uri generate
+presentations/
+*.pptx
+*.ppt
+slide-*.jpg
+output.pptx
+
+# Ignorare dependente instalate in root (tooling)
+/package.json
+/package-lock.json
+/node_modules/
