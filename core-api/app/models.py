@@ -46,6 +46,33 @@ class Lead(Base):
     signals = Column(JSONB, default=list, nullable=False)
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     status = Column(String, default="new", nullable=False)
+    linkedin_url = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class LinkedInCredential(Base):
+    __tablename__ = "linkedin_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    cookies_json = Column(Text, nullable=False)
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True, nullable=False)
+
+
+class ScrapeJob(Base):
+    __tablename__ = "scrape_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    query = Column(Text, nullable=False)
+    pages_requested = Column(Integer, nullable=False)
+    status = Column(String, default="pending", nullable=False)
+    scraped_count = Column(Integer, default=0, nullable=False)
+    leads_created = Column(Integer, default=0, nullable=False)
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
