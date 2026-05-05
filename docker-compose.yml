@@ -96,7 +96,7 @@ services:
     restart: unless-stopped
   ngrok:
     image: ngrok/ngrok:latest
-    restart: always
+    restart: on-failure
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
     command:

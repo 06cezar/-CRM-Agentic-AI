@@ -5,9 +5,12 @@ Adapted from demo-scraper/scraper.py for use as a Docker microservice.
 
 import asyncio
 import json
+import logging
 import random
 import urllib.parse
 from typing import Callable, Awaitable
+
+logger = logging.getLogger(__name__)
 
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
@@ -25,6 +28,30 @@ def build_search_url(query: str, page: int = 1) -> str:
     )
 
 
+_SAME_SITE_MAP = {
+    "strict": "Strict",
+    "lax": "Lax",
+    "none": "None",
+    "no_restriction": "None",
+    "unspecified": "Lax",
+}
+
+def _normalize_same_site(value: str | None) -> str:
+    if not value:
+        return "None"
+    return _SAME_SITE_MAP.get(value.lower(), "None")
+
+
+def _normalize_domain(domain: str | None) -> str:
+    if not domain:
+        return ".linkedin.com"
+    # Playwright wants .www.linkedin.com → .linkedin.com for Sales Navigator
+    # so that cookies apply to all linkedin.com subdomains including www
+    if domain in (".www.linkedin.com", "www.linkedin.com"):
+        return ".linkedin.com"
+    return domain
+
+
 def parse_cookie_json(json_str: str) -> list[dict]:
     """Parse LinkedIn cookies from a JSON string (stored in DB)."""
     cookies = json.loads(json_str)
@@ -33,12 +60,12 @@ def parse_cookie_json(json_str: str) -> list[dict]:
         normalized.append({
             "name": c.get("name", ""),
             "value": c.get("value", ""),
-            "domain": c.get("domain", ".linkedin.com"),
+            "domain": _normalize_domain(c.get("domain")),
             "path": c.get("path", "/"),
             "expires": c.get("expirationDate") or c.get("expires") or -1,
             "httpOnly": c.get("httpOnly", False),
             "secure": c.get("secure", True),
-            "sameSite": c.get("sameSite", "None"),
+            "sameSite": _normalize_same_site(c.get("sameSite")),
         })
     return normalized
 
@@ -117,7 +144,14 @@ async def scrape_async(
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-setuid-sandbox"],
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--disable-infobars",
+                "--window-size=1440,900",
+            ],
         )
         context = await browser.new_context(
             user_agent=(
@@ -126,16 +160,45 @@ async def scrape_async(
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
             viewport={"width": 1440, "height": 900},
+            locale="en-US",
+            timezone_id="America/New_York",
+            extra_http_headers={
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br",
+                "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"macOS"',
+            },
         )
+        # Mask navigator.webdriver before any page loads
+        await context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+            window.chrome = { runtime: {} };
+        """)
         await context.add_cookies(cookies)
+
+        # Verify critical cookies were accepted
+        stored = await context.cookies("https://www.linkedin.com")
+        stored_names = {c["name"] for c in stored}
+        logger.info(f"Cookies in context: {sorted(stored_names)}")
+        for critical in ("li_at", "JSESSIONID", "bscookie"):
+            logger.info(f"  {critical}: {'PRESENT' if critical in stored_names else 'MISSING'}")
+
         page = await context.new_page()
 
+        # Navigate to www explicitly so .linkedin.com cookies are sent on the right origin
+        await page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
+        await asyncio.sleep(random.uniform(1.5, 2.5))
         await page.goto("https://www.linkedin.com/sales/home", wait_until="domcontentloaded")
-        await asyncio.sleep(2)
+        await asyncio.sleep(random.uniform(2.0, 3.5))
 
-        if "login" in page.url or "authwall" in page.url:
+        final_url = page.url
+        logger.info(f"After navigation, landed on: {final_url}")
+        if "login" in final_url or "authwall" in final_url or "checkpoint" in final_url:
             await browser.close()
-            raise AuthExpiredError("LinkedIn session expired — please re-upload cookies")
+            raise AuthExpiredError(f"LinkedIn redirected to: {final_url} — cookies may be expired or IP is blocked")
 
         for page_num in range(1, max_pages + 1):
             url = build_search_url(query, page_num)

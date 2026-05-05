@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, func, BigInteger, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, Float, ForeignKey, func, BigInteger, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from app.database import Base
