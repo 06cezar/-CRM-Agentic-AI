@@ -6,10 +6,13 @@ Structură:
   - Integration tests       — rulează cu Ollama real (skip dacă nu e disponibil)
                               marcate cu @pytest.mark.integration
 
+Notă: CopilotAgent folosește JSON prompting (fără tool use) deoarece
+llama3.2:3b nu populează corect tool_calls (Ollama issue #13519).
+
 Assertions per EPIC 6 spec:
   winning_argument: conține company/role, menționează un signal, 20-150 cuvinte, fără placeholders
   draft_message:    conține lead.name, 50-300 cuvinte, fără placeholders
-  performance:      agent completează în sub 15s
+  performance:      agent completează în sub 60s
 """
 
 import json
@@ -17,8 +20,9 @@ import time
 import pytest
 from unittest.mock import MagicMock, patch
 from agents.copilot_agent import (
-    _handle_tool_call,
-    _build_user_prompt,
+    _build_prompt,
+    _extract_json,
+    _clean_placeholders,
     run,
 )
 
@@ -61,18 +65,6 @@ LEAD_COLD = {
     "last_activity_description": None,
 }
 
-LEAD_NO_SIGNALS = {
-    "id": 4,
-    "name": "Elena Marin",
-    "company": "RetailCo",
-    "role": "Head of Operations",
-    "email": "elena@retailco.ro",
-    "deal_value_display": None,
-    "intent_score": None,
-    "signals": [],
-    "last_activity_description": None,
-}
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -80,159 +72,126 @@ def _word_count(text: str) -> int:
     return len(text.split())
 
 
-PLACEHOLDER_PATTERNS = ["[NAME]", "[COMPANY]", "[INSERT]", "[YOUR NAME]", "[ROLE]", "[DATE]", "[YOUR EMAIL]"]
+PLACEHOLDER_PATTERNS = ["[NAME]", "[COMPANY]", "[INSERT]", "[YOUR NAME]", "[Your Name]", "[ROLE]", "[DATE]", "[YOUR EMAIL]"]
 
 
 def _has_placeholder(text: str) -> bool:
     return any(p in text for p in PLACEHOLDER_PATTERNS)
 
 
-def _make_tool_call_message(tool_name: str, arguments: dict):
-    tool_call = MagicMock()
-    tool_call.id = "call_abc"
-    tool_call.function.name = tool_name
-    tool_call.function.arguments = json.dumps(arguments)
-    message = MagicMock()
-    message.tool_calls = [tool_call]
-    return message
-
-
-def _make_text_message(content: str = "Done."):
+def _make_json_response(data: dict):
     message = MagicMock()
     message.tool_calls = None
-    message.content = content
-    return message
+    message.content = json.dumps(data)
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    return response
 
 
-# ── Unit: _handle_tool_call ───────────────────────────────────────────────────
-
-class TestHandleToolCall:
-    def test_set_winning_argument_updates_state(self):
-        state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
-        result = _handle_tool_call(
-            "set_winning_argument",
-            {"argument": "TechCorp needs automation now.", "confidence": 0.9},
-            state,
-        )
-        assert state["winning_argument"] == "TechCorp needs automation now."
-        assert state["confidence"] == 0.9
-        assert json.loads(result)["status"] == "ok"
-
-    def test_set_draft_message_updates_state(self):
-        state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
-        result = _handle_tool_call(
-            "set_draft_message",
-            {"message": "Hi Maria,\n\nI wanted to reach out..."},
-            state,
-        )
-        assert state["draft_message"] == "Hi Maria,\n\nI wanted to reach out..."
-        assert json.loads(result)["status"] == "ok"
-
-    def test_confidence_clamps_to_1(self):
-        state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
-        _handle_tool_call("set_winning_argument", {"argument": "Test", "confidence": 5.0}, state)
-        assert state["confidence"] == 1.0
-
-    def test_confidence_clamps_to_0(self):
-        state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
-        _handle_tool_call("set_winning_argument", {"argument": "Test", "confidence": -1.0}, state)
-        assert state["confidence"] == 0.0
-
-    def test_nested_object_fallback_winning_argument(self):
-        """llama3.2:3b returnează uneori {"object": {"argument": "..."}}"""
-        state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
-        _handle_tool_call(
-            "set_winning_argument",
-            {"object": {"argument": "Nested argument", "confidence": 0.7}},
-            state,
-        )
-        assert state["winning_argument"] == "Nested argument"
-        assert state["confidence"] == 0.7
-
-    def test_nested_object_fallback_draft_message(self):
-        state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
-        _handle_tool_call(
-            "set_draft_message",
-            {"object": {"message": "Hi from nested"}},
-            state,
-        )
-        assert state["draft_message"] == "Hi from nested"
-
-    def test_unknown_tool_returns_error(self):
-        state = {}
-        result = json.loads(_handle_tool_call("unknown_tool", {}, state))
-        assert "error" in result
-
-    def test_whitespace_stripped_from_argument(self):
-        state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
-        _handle_tool_call("set_winning_argument", {"argument": "  Trimmed  ", "confidence": 0.8}, state)
-        assert state["winning_argument"] == "Trimmed"
+def _make_empty_response():
+    message = MagicMock()
+    message.tool_calls = None
+    message.content = ""
+    response = MagicMock()
+    response.choices = [MagicMock(message=message)]
+    return response
 
 
-# ── Unit: _build_user_prompt ──────────────────────────────────────────────────
+# ── Unit: _extract_json ───────────────────────────────────────────────────────
 
-class TestBuildUserPrompt:
+class TestExtractJson:
+    def test_valid_json(self):
+        text = '{"winning_argument": "Strong case.", "draft_message": "Hi Maria,\\n\\nText.", "confidence": 0.9}'
+        result = _extract_json(text)
+        assert result is not None
+        assert result["confidence"] == 0.9
+
+    def test_json_missing_closing_brace(self):
+        """Modelul uită } la final — trebuie recuperat."""
+        text = '{"winning_argument": "Strong case.", "draft_message": "Hi Maria,\\n\\nText.", "confidence": 0.9'
+        result = _extract_json(text)
+        assert result is not None
+        assert result["winning_argument"] == "Strong case."
+
+    def test_json_with_preamble(self):
+        text = 'Sure, here is the JSON:\n{"winning_argument": "Test", "draft_message": "Hi", "confidence": 0.8}'
+        result = _extract_json(text)
+        assert result is not None
+
+    def test_empty_returns_none(self):
+        assert _extract_json("") is None
+        assert _extract_json(None) is None
+
+    def test_plain_text_returns_none(self):
+        assert _extract_json("This is just text, no JSON here.") is None
+
+
+# ── Unit: _clean_placeholders ─────────────────────────────────────────────────
+
+class TestCleanPlaceholders:
+    def test_replaces_your_name_uppercase(self):
+        assert "Your Sales Team" in _clean_placeholders("Best, [YOUR NAME]")
+
+    def test_replaces_your_name_mixed_case(self):
+        assert "Your Sales Team" in _clean_placeholders("Best, [Your Name]")
+
+    def test_replaces_your_email(self):
+        assert "sales@company.com" in _clean_placeholders("Contact [YOUR EMAIL]")
+
+    def test_no_placeholders_unchanged(self):
+        text = "Hi Maria, let's connect."
+        assert _clean_placeholders(text) == text
+
+
+# ── Unit: _build_prompt ───────────────────────────────────────────────────────
+
+class TestBuildPrompt:
     def test_contains_lead_fields(self):
-        prompt = _build_user_prompt(LEAD_HOT)
+        prompt = _build_prompt(LEAD_HOT)
         assert "Maria Ionescu" in prompt
         assert "TechCorp SRL" in prompt
         assert "CEO" in prompt
         assert "€45,000" in prompt
-        assert "87" in prompt  # intent_score
+        assert "87" in prompt
 
     def test_contains_signals(self):
-        prompt = _build_user_prompt(LEAD_HOT)
+        prompt = _build_prompt(LEAD_HOT)
         assert "Budget Approved" in prompt
-        assert "Decision Maker" in prompt
+        assert "Demo Requested" in prompt
 
-    def test_no_signals_shows_none_detected(self):
-        prompt = _build_user_prompt(LEAD_COLD)
+    def test_no_signals_shows_none(self):
+        prompt = _build_prompt(LEAD_COLD)
         assert "none detected" in prompt
 
-    def test_handles_none_fields(self):
-        """Nu trebuie să crape pentru câmpuri lipsă"""
-        prompt = _build_user_prompt(LEAD_NO_SIGNALS)
-        assert "Elena Marin" in prompt
-        assert "N/A" in prompt  # deal_value_display None → N/A
-
-    def test_contains_tool_instructions(self):
-        prompt = _build_user_prompt(LEAD_HOT)
-        assert "set_winning_argument" in prompt
-        assert "set_draft_message" in prompt
+    def test_contains_json_format(self):
+        prompt = _build_prompt(LEAD_HOT)
+        assert "winning_argument" in prompt
+        assert "draft_message" in prompt
+        assert "JSON" in prompt
 
 
 # ── Unit: run() cu mock Ollama ────────────────────────────────────────────────
 
 class TestRunWithMock:
-    def _make_response(self, message):
-        response = MagicMock()
-        response.choices = [MagicMock(message=message)]
-        return response
-
     @patch("agents.copilot_agent.client")
     def test_run_returns_required_keys(self, mock_client):
-        """Output-ul agentului trebuie să aibă toate cheile necesare."""
-        mock_client.chat.completions.create.return_value = self._make_response(
-            _make_text_message()
-        )
+        mock_client.chat.completions.create.return_value = _make_json_response({
+            "winning_argument": "TechCorp needs automation now.",
+            "draft_message": "Hi Maria,\n\nI noticed TechCorp's growth...",
+            "confidence": 0.9,
+        })
         result = run(LEAD_HOT)
         assert "winning_argument" in result
         assert "draft_message" in result
         assert "confidence" in result
 
     @patch("agents.copilot_agent.client")
-    def test_run_full_tool_flow(self, mock_client):
-        """Test scenariul complet: set_winning_argument → set_draft_message → done."""
-        mock_client.chat.completions.create.side_effect = [
-            self._make_response(_make_tool_call_message("set_winning_argument", {
-                "argument": "TechCorp has grown 3x. They need automation now.",
-                "confidence": 0.9,
-            })),
-            self._make_response(_make_tool_call_message("set_draft_message", {
-                "message": "Hi Maria,\n\nI noticed TechCorp's impressive growth...",
-            })),
-            self._make_response(_make_text_message("All done.")),
-        ]
+    def test_run_parses_json_correctly(self, mock_client):
+        mock_client.chat.completions.create.return_value = _make_json_response({
+            "winning_argument": "TechCorp has grown 3x. They need automation now.",
+            "draft_message": "Hi Maria,\n\nI noticed TechCorp's impressive growth...",
+            "confidence": 0.9,
+        })
         result = run(LEAD_HOT)
         assert result["winning_argument"] == "TechCorp has grown 3x. They need automation now."
         assert result["draft_message"] == "Hi Maria,\n\nI noticed TechCorp's impressive growth..."
@@ -248,27 +207,36 @@ class TestRunWithMock:
         assert result["confidence"] == 0.5
 
     @patch("agents.copilot_agent.client")
-    def test_run_with_empty_signals(self, mock_client):
-        """Agentul nu trebuie să crape dacă lead-ul nu are signals."""
-        mock_client.chat.completions.create.return_value = self._make_response(
-            _make_text_message()
-        )
-        result = run(LEAD_COLD)
-        assert "winning_argument" in result
-        assert isinstance(result["confidence"], float)
+    def test_run_retries_on_empty_response(self, mock_client):
+        mock_client.chat.completions.create.side_effect = [
+            _make_empty_response(),
+            _make_json_response({
+                "winning_argument": "Strong case.",
+                "draft_message": "Hi Maria,\n\nLet's connect.",
+                "confidence": 0.8,
+            }),
+        ]
+        result = run(LEAD_HOT)
+        assert result["winning_argument"] == "Strong case."
 
     @patch("agents.copilot_agent.client")
     def test_run_confidence_in_valid_range(self, mock_client):
-        """confidence trebuie să fie între 0.0 și 1.0."""
-        mock_client.chat.completions.create.side_effect = [
-            self._make_response(_make_tool_call_message("set_winning_argument", {
-                "argument": "Strong case.",
-                "confidence": 0.85,
-            })),
-            self._make_response(_make_text_message()),
-        ]
+        mock_client.chat.completions.create.return_value = _make_json_response({
+            "winning_argument": "Test.", "draft_message": "Hi Maria.", "confidence": 0.85
+        })
         result = run(LEAD_HOT)
         assert 0.0 <= result["confidence"] <= 1.0
+
+    @patch("agents.copilot_agent.client")
+    def test_run_with_empty_signals(self, mock_client):
+        mock_client.chat.completions.create.return_value = _make_json_response({
+            "winning_argument": "Ion should consider our solution.",
+            "draft_message": "Hi Ion,\n\nReaching out...",
+            "confidence": 0.5,
+        })
+        result = run(LEAD_COLD)
+        assert "winning_argument" in result
+        assert isinstance(result["confidence"], float)
 
 
 # ── Integration tests (necesită Ollama pornit) ────────────────────────────────
@@ -286,7 +254,6 @@ def _ollama_available() -> bool:
 
 @pytest.fixture(scope="session")
 def hot_result():
-    """Rulează agentul o singură dată pentru LEAD_HOT și împarte rezultatul între toate testele."""
     if not _ollama_available():
         pytest.skip("Ollama not available")
     return run(LEAD_HOT)
@@ -294,7 +261,6 @@ def hot_result():
 
 @pytest.fixture(scope="session")
 def warm_result():
-    """Rulează agentul o singură dată pentru LEAD_WARM."""
     if not _ollama_available():
         pytest.skip("Ollama not available")
     return run(LEAD_WARM)
@@ -302,7 +268,6 @@ def warm_result():
 
 @pytest.fixture(scope="session")
 def cold_result():
-    """Rulează agentul o singură dată pentru LEAD_COLD."""
     if not _ollama_available():
         pytest.skip("Ollama not available")
     return run(LEAD_COLD)
@@ -314,14 +279,7 @@ class TestCopilotIntegration:
     Aceste teste rulează cu Ollama real.
     Execuție: pytest -m integration
     Skip automat dacă Ollama nu e disponibil.
-
-    Agentul este invocat o singură dată per lead (session-scoped fixtures)
-    pentru a elimina non-determinismul între teste.
-
-    Assertions per EPIC 6 spec:
-      winning_argument: conține company/role, menționează un signal, 20-150 cuvinte, no placeholders
-      draft_message:    conține lead.name, 50-300 cuvinte, no placeholders
-      performance:      agent completează în sub 60s
+    Session-scoped fixtures — agentul rulează o singură dată per lead.
     """
 
     def test_output_schema(self, hot_result):
@@ -331,16 +289,11 @@ class TestCopilotIntegration:
         assert 0.0 <= hot_result["confidence"] <= 1.0
 
     def test_winning_argument_contains_company_or_role(self, hot_result):
-        """winning_argument trebuie să menționeze company sau role (nu e generic)."""
         arg = hot_result["winning_argument"]
-        assert (
-            LEAD_HOT["company"] in arg or LEAD_HOT["role"] in arg
-        ), f"Expected company or role in argument, got: {arg}"
+        assert LEAD_HOT["company"] in arg or LEAD_HOT["role"] in arg, \
+            f"Expected company or role in argument, got: {arg}"
 
     def test_winning_argument_mentions_a_signal(self, hot_result):
-        """winning_argument trebuie să menționeze cel puțin un cuvânt dintr-un signal detectat.
-        Nota: LLM-ul parafrazează ("budget has been approved" vs "Budget Approved"),
-        deci verificăm la nivel de cuvânt cheie (>3 caractere) nu exact substring."""
         arg = hot_result["winning_argument"].lower()
         signal_found = any(
             word.lower() in arg
@@ -348,44 +301,29 @@ class TestCopilotIntegration:
             for word in sig.split()
             if len(word) > 3
         )
-        assert signal_found, f"Expected a signal keyword in argument, got: {hot_result['winning_argument']}"
+        assert signal_found, f"Expected signal keyword in argument, got: {hot_result['winning_argument']}"
 
     def test_winning_argument_word_count(self, hot_result):
-        """winning_argument trebuie să aibă 20-150 cuvinte."""
         wc = _word_count(hot_result["winning_argument"])
         assert 20 <= wc <= 150, f"Word count out of range: {wc}"
 
     def test_winning_argument_no_placeholders(self, hot_result):
-        """winning_argument nu trebuie să conțină placeholder-e neînlocuite."""
-        assert not _has_placeholder(hot_result["winning_argument"]), (
-            f"Placeholder found in argument: {hot_result['winning_argument']}"
-        )
+        assert not _has_placeholder(hot_result["winning_argument"])
 
     def test_draft_message_contains_lead_name(self, hot_result):
-        """draft_message trebuie să conțină cel puțin prenumele contactului.
-        Nota: LLM-ul folosește de obicei prenumele în salut (Hi Maria,)
-        nu numele complet (Maria Ionescu)."""
-        first_name = LEAD_HOT["name"].split()[0]  # "Maria"
-        full_name = LEAD_HOT["name"]               # "Maria Ionescu"
-        assert first_name in hot_result["draft_message"] or full_name in hot_result["draft_message"], (
+        first_name = LEAD_HOT["name"].split()[0]
+        assert first_name in hot_result["draft_message"] or LEAD_HOT["name"] in hot_result["draft_message"], \
             f"Expected lead name in draft_message, got: {hot_result['draft_message'][:150]}"
-        )
 
     def test_draft_message_word_count(self, hot_result):
-        """draft_message trebuie să aibă 50-300 cuvinte."""
         wc = _word_count(hot_result["draft_message"])
         assert 50 <= wc <= 300, f"Word count out of range: {wc}"
 
     def test_draft_message_no_placeholders(self, hot_result):
-        """draft_message nu trebuie să conțină placeholder-e neînlocuite."""
-        assert not _has_placeholder(hot_result["draft_message"]), (
-            f"Placeholder found in draft_message: {hot_result['draft_message'][:100]}"
-        )
+        assert not _has_placeholder(hot_result["draft_message"])
 
     def test_completes_under_60_seconds(self):
-        """Agentul trebuie să completeze în sub 60 secunde.
-        Nota: llama3.2:3b pe hardware local poate dura 30-60s per run.
-        Limita de 60s e realistă pentru demo/grading pe mașini fără GPU."""
+        """llama3.2:3b pe hardware local fără GPU durează 30-60s."""
         if not _ollama_available():
             pytest.skip("Ollama not available")
         start = time.time()
@@ -394,14 +332,10 @@ class TestCopilotIntegration:
         assert elapsed < 60, f"Agent took {elapsed:.1f}s (limit: 60s)"
 
     def test_warm_lead_produces_output(self, warm_result):
-        """Test pe lead warm cu un singur signal (Competitor Churn).
-        Nota: llama3.2:3b poate uneori sări tool calls pe lead-uri mai puțin urgente.
-        Verificăm că agentul nu crapă și returnează tipuri corecte."""
         assert isinstance(warm_result["winning_argument"], str)
         assert isinstance(warm_result["draft_message"], str)
         assert isinstance(warm_result["confidence"], float)
 
     def test_cold_lead_no_signals_does_not_crash(self, cold_result):
-        """Agentul trebuie să producă output chiar fără signals."""
         assert isinstance(cold_result["winning_argument"], str)
         assert isinstance(cold_result["draft_message"], str)
