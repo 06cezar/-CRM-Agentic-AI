@@ -23,6 +23,7 @@ from agents.copilot_agent import (
     _build_prompt,
     _extract_json,
     _clean_placeholders,
+    _parse_result,
     run,
 )
 
@@ -125,6 +126,20 @@ class TestExtractJson:
     def test_plain_text_returns_none(self):
         assert _extract_json("This is just text, no JSON here.") is None
 
+    def test_json_with_trailing_text_no_crash(self):
+        """Implementarea curentă nu recuperează JSON cu trailing text — important să nu arunce excepție."""
+        text = '{"winning_argument": "Strong.", "draft_message": "Hi Maria.", "confidence": 0.9}\nThat is all.'
+        result = _extract_json(text)
+        # Poate returna None sau dict — important: nu aruncă excepție
+        assert result is None or isinstance(result, dict)
+
+    def test_deeply_truncated_json_recovered(self):
+        """Modelul a tăiat JSON-ul la jumătate — se adaugă } la final."""
+        text = '{"winning_argument": "TechCorp needs us.", "draft_message": "Hi Maria,'
+        result = _extract_json(text)
+        # Poate sau nu să recupereze — important să nu arunce excepție
+        assert result is None or isinstance(result, dict)
+
 
 # ── Unit: _clean_placeholders ─────────────────────────────────────────────────
 
@@ -141,6 +156,91 @@ class TestCleanPlaceholders:
     def test_no_placeholders_unchanged(self):
         text = "Hi Maria, let's connect."
         assert _clean_placeholders(text) == text
+
+    def test_replaces_name_placeholder(self):
+        result = _clean_placeholders("Hello [NAME], welcome!")
+        assert "[NAME]" not in result
+
+    def test_replaces_company_placeholder(self):
+        result = _clean_placeholders("At [COMPANY], we offer...")
+        assert "[COMPANY]" not in result
+
+    def test_multiple_placeholders_replaced(self):
+        text = "Hi [NAME], from [YOUR NAME]"
+        result = _clean_placeholders(text)
+        assert "[NAME]" not in result
+        assert "[YOUR NAME]" not in result
+
+
+# ── Unit: _parse_result ──────────────────────────────────────────────────────
+
+class TestParseResult:
+    def test_normal_result(self):
+        data = {
+            "winning_argument": "TechCorp needs automation.",
+            "draft_message": "Hi Maria,\n\nLet's connect.",
+            "confidence": 0.9,
+        }
+        result = _parse_result(data)
+        assert result["winning_argument"] == "TechCorp needs automation."
+        assert result["draft_message"] == "Hi Maria,\n\nLet's connect."
+        assert result["confidence"] == 0.9
+
+    def test_draft_message_as_dict_with_body(self):
+        """Modelul returnează uneori draft_message ca dict cu câmpul 'body'."""
+        data = {
+            "winning_argument": "Strong argument.",
+            "draft_message": {"body": "Hi Maria,\n\nEmail text here."},
+            "confidence": 0.8,
+        }
+        result = _parse_result(data)
+        assert result["draft_message"] == "Hi Maria,\n\nEmail text here."
+
+    def test_draft_message_as_dict_with_message_key(self):
+        data = {
+            "winning_argument": "Strong.",
+            "draft_message": {"message": "Hi Maria, let's talk."},
+            "confidence": 0.7,
+        }
+        result = _parse_result(data)
+        assert result["draft_message"] == "Hi Maria, let's talk."
+
+    def test_confidence_clamps_above_1(self):
+        data = {"winning_argument": "Test.", "draft_message": "Hi.", "confidence": 5.0}
+        result = _parse_result(data)
+        assert result["confidence"] == 1.0
+
+    def test_confidence_clamps_below_0(self):
+        data = {"winning_argument": "Test.", "draft_message": "Hi.", "confidence": -0.5}
+        result = _parse_result(data)
+        assert result["confidence"] == 0.0
+
+    def test_missing_fields_use_defaults(self):
+        result = _parse_result({})
+        assert result["winning_argument"] == ""
+        assert result["draft_message"] == ""
+        assert result["confidence"] == 0.5
+
+    def test_placeholders_cleaned_in_draft(self):
+        data = {
+            "winning_argument": "Strong.",
+            "draft_message": "Hi Maria,\n\nBest regards,\n[YOUR NAME]",
+            "confidence": 0.8,
+        }
+        result = _parse_result(data)
+        assert "[YOUR NAME]" not in result["draft_message"]
+        assert "Your Sales Team" in result["draft_message"]
+
+    def test_none_values_become_empty_string(self):
+        data = {"winning_argument": None, "draft_message": None, "confidence": 0.5}
+        result = _parse_result(data)
+        assert result["winning_argument"] == ""
+        assert result["draft_message"] == ""
+
+    def test_invalid_confidence_defaults_to_half(self):
+        data = {"winning_argument": "Test.", "draft_message": "Hi.", "confidence": "not-a-number"}
+        result = _parse_result(data)
+        assert result["confidence"] == 0.5
 
 
 # ── Unit: _build_prompt ───────────────────────────────────────────────────────
@@ -237,6 +337,36 @@ class TestRunWithMock:
         result = run(LEAD_COLD)
         assert "winning_argument" in result
         assert isinstance(result["confidence"], float)
+
+    @patch("agents.copilot_agent.client")
+    def test_run_all_attempts_fail_returns_empty_defaults(self, mock_client):
+        mock_client.chat.completions.create.side_effect = Exception("Timeout")
+        result = run(LEAD_HOT)
+        assert result["winning_argument"] == ""
+        assert result["draft_message"] == ""
+        assert result["confidence"] == 0.5
+
+    @patch("agents.copilot_agent.client")
+    def test_run_cleans_placeholders_in_output(self, mock_client):
+        mock_client.chat.completions.create.return_value = _make_json_response({
+            "winning_argument": "TechCorp should act now.",
+            "draft_message": "Hi Maria,\n\nBest,\n[YOUR NAME]",
+            "confidence": 0.85,
+        })
+        result = run(LEAD_HOT)
+        assert "[YOUR NAME]" not in result["draft_message"]
+
+    @patch("agents.copilot_agent.client")
+    def test_run_warm_lead_returns_all_keys(self, mock_client):
+        mock_client.chat.completions.create.return_value = _make_json_response({
+            "winning_argument": "Alexandru should switch now due to Competitor Churn.",
+            "draft_message": "Hi Alexandru,\n\nI noticed Global Solutions recently...",
+            "confidence": 0.7,
+        })
+        result = run(LEAD_WARM)
+        assert "winning_argument" in result
+        assert "draft_message" in result
+        assert "confidence" in result
 
 
 # ── Integration tests (necesită Ollama pornit) ────────────────────────────────

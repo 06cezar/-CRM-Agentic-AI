@@ -56,26 +56,33 @@ def _build_prompt(lead: dict) -> str:
 
 
 def _extract_json(text: str) -> dict | None:
-    """Extrage primul obiect JSON valid din răspunsul modelului."""
+    """Extrage primul obiect JSON valid din răspunsul modelului.
+    Gestionează cazul frecvent la llama3.2:3b unde JSON-ul e tăiat (lipsește } final).
+    """
     if not text:
         return None
-    # Încearcă direct dacă textul e JSON pur
+    # 1. Încearcă direct dacă textul e JSON pur
     try:
         return json.loads(text.strip())
     except json.JSONDecodeError:
         pass
-    # Caută primul bloc {...} în text (modelul uneori adaugă explicații înainte/după)
+    # 2. Caută blocul care conține intent_score (mai specific)
     match = re.search(r'\{[^{}]*"intent_score"[^{}]*\}', text, re.DOTALL)
     if match:
         try:
             return json.loads(match.group())
         except json.JSONDecodeError:
             pass
-    # Caută orice bloc JSON valid
-    match = re.search(r'\{.*\}', text, re.DOTALL)
+    # 3. Caută orice bloc JSON — încearcă și cu } adăugat (modelul uită closing brace)
+    match = re.search(r'\{.*', text, re.DOTALL)
     if match:
+        candidate = match.group().strip()
         try:
-            return json.loads(match.group())
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+        try:
+            return json.loads(candidate + "}")
         except json.JSONDecodeError:
             pass
     return None

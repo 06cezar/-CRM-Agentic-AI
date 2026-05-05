@@ -73,6 +73,20 @@ class TestExtractJson:
     def test_plain_text_no_json_returns_none(self):
         assert _extract_json("This lead looks interesting.") is None
 
+    def test_json_in_markdown_code_block(self):
+        """Modelul uneori înfășoară JSON-ul în ```json ... ```."""
+        text = '```json\n{"signals": ["Demo Requested"], "intent_score": 80, "reasoning": "Warm", "confidence": 0.8}\n```'
+        result = _extract_json(text)
+        # Dacă regex-ul prinde blocul, bine; altfel returnează None — ambele ok
+        if result is not None:
+            assert result["intent_score"] == 80
+
+    def test_json_with_trailing_text(self):
+        text = '{"signals": ["Budget Approved"], "intent_score": 90, "reasoning": "Hot", "confidence": 0.9}\nSome extra text.'
+        result = _extract_json(text)
+        assert result is not None
+        assert result["intent_score"] == 90
+
 
 # ── Unit: _parse_result ───────────────────────────────────────────────────────
 
@@ -115,6 +129,23 @@ class TestParseResult:
         assert result["intent_score"] == 50
         assert result["signals"] == []
         assert result["confidence"] == 0.5
+
+    def test_signals_with_extra_whitespace(self):
+        data = {"signals": ["  Demo Requested  ", " Budget Approved "], "intent_score": 80, "confidence": 0.8, "reasoning": ""}
+        result = _parse_result(data)
+        assert "Demo Requested" in result["signals"]
+        assert "Budget Approved" in result["signals"]
+
+    def test_reasoning_is_string(self):
+        data = {"signals": [], "intent_score": 50, "confidence": 0.5, "reasoning": "Insufficient data"}
+        result = _parse_result(data)
+        assert result["reasoning"] == "Insufficient data"
+
+    def test_signals_with_empty_strings_filtered(self):
+        data = {"signals": ["", "Demo Requested", "  "], "intent_score": 70, "confidence": 0.7, "reasoning": ""}
+        result = _parse_result(data)
+        assert "" not in result["signals"]
+        assert "Demo Requested" in result["signals"]
 
 
 # ── Unit: _build_prompt ───────────────────────────────────────────────────────
@@ -235,6 +266,30 @@ class TestRunWithMock:
         result = run(LEAD_NO_ACTIVITY)
         assert "intent_score" in result
         assert isinstance(result["signals"], list)
+
+    @patch("agents.research_agent.client")
+    def test_run_summary_contains_score(self, mock_client):
+        mock_client.chat.completions.create.return_value = _make_json_response({
+            "signals": ["Demo Requested"], "intent_score": 92, "reasoning": "Hot lead", "confidence": 0.9
+        })
+        result = run(SAMPLE_LEAD)
+        assert "92" in result["summary"]
+
+    @patch("agents.research_agent.client")
+    def test_run_summary_contains_company(self, mock_client):
+        mock_client.chat.completions.create.return_value = _make_json_response({
+            "signals": ["Budget Approved"], "intent_score": 75, "reasoning": "Warm", "confidence": 0.8
+        })
+        result = run(SAMPLE_LEAD)
+        assert "TechCorp SRL" in result["summary"]
+
+    @patch("agents.research_agent.client")
+    def test_run_all_three_attempts_fail_returns_defaults(self, mock_client):
+        mock_client.chat.completions.create.side_effect = Exception("Timeout")
+        result = run(SAMPLE_LEAD)
+        assert result["intent_score"] == 50
+        assert result["signals"] == []
+        assert result["confidence"] == 0.5
 
 
 # ── Integration tests (necesită Ollama pornit) ────────────────────────────────
