@@ -4,12 +4,17 @@ CopilotAgent — generates personalized sales co-pilot content for a lead:
   - draft_message: ready-to-send outreach email
   - confidence: 0.0-1.0
 
-Uses Ollama via OpenAI-compatible API with tool use.
-Model configured via OLLAMA_MODEL env var (default: llama3.2:3b).
+Uses Ollama via OpenAI-compatible API.
+llama3.2:3b does not reliably use the tool_calls field (known Ollama issue #13519) —
+it outputs tool calls as JSON in the content field instead.
+This agent uses structured JSON prompting (no tool use) and extracts the result
+from the model's text response.
+Model configured via OLLAMA_MODEL env var in docker-compose.yml (default: llama3.2:3b).
 """
 
 import os
 import json
+import re
 import logging
 from openai import OpenAI
 
@@ -20,71 +25,8 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 
 client = OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
 
-# ── Tool definitions ──────────────────────────────────────────────────────────
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "set_winning_argument",
-            "description": (
-                "Set the winning sales argument for this lead. "
-                "The argument must be personalized — reference the lead's company, role, "
-                "and at least one buying signal. Explain concisely why they should buy now. "
-                "Keep it between 20-150 words. Be specific, not generic."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "argument": {
-                        "type": "string",
-                        "description": "The personalized winning sales argument.",
-                    },
-                    "confidence": {
-                        "type": "number",
-                        "description": "Confidence in this argument, between 0.0 and 1.0.",
-                    },
-                },
-                "required": ["argument", "confidence"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "set_draft_message",
-            "description": (
-                "Set the personalized outreach email draft for this lead. "
-                "The email must use the lead's actual name in the greeting (not [NAME] or Dear Sir). "
-                "Keep it between 50-300 words — professional, specific, and actionable. "
-                "Never use placeholder text like [COMPANY], [INSERT], or [YOUR NAME]."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string",
-                        "description": "The ready-to-send email draft.",
-                    },
-                },
-                "required": ["message"],
-            },
-        },
-    },
-]
 
-
-def _build_system_prompt() -> str:
-    return (
-        "You are an AI sales co-pilot. Your mission: help a sales rep close a deal "
-        "by generating a personalized winning argument and a ready-to-send outreach email. "
-        "Use the available tools in order: first set_winning_argument, then set_draft_message. "
-        "Base your outputs on the lead's profile, buying signals, and intent score. "
-        "Be specific — use the lead's real name, company, and detected signals. "
-        "Never use placeholder text."
-    )
-
-
-def _build_user_prompt(lead: dict) -> str:
+def _build_prompt(lead: dict) -> str:
     def _val(key: str, fallback: str = "N/A") -> str:
         v = lead.get(key)
         return str(v) if v is not None else fallback
@@ -93,183 +35,161 @@ def _build_user_prompt(lead: dict) -> str:
     signals_text = ", ".join(signals) if signals else "none detected"
 
     return (
-        f"Generate co-pilot content for this lead:\n\n"
-        f"Name: {_val('name')}\n"
-        f"Company: {_val('company')}\n"
-        f"Role: {_val('role')}\n"
-        f"Email: {_val('email')}\n"
-        f"Deal value: {_val('deal_value_display')}\n"
-        f"Intent score: {_val('intent_score')}/100\n"
-        f"Buying signals: {signals_text}\n"
-        f"Last activity: {_val('last_activity_description', 'unknown')}\n\n"
-        f"Use set_winning_argument to set a personalized winning argument, "
-        f"then set_draft_message to draft a personalized outreach email."
+        "You are an AI sales co-pilot. Analyze the lead below and respond with ONLY a JSON object.\n\n"
+        f"Lead:\n"
+        f"- Name: {_val('name')}\n"
+        f"- Company: {_val('company')}\n"
+        f"- Role: {_val('role')}\n"
+        f"- Email: {_val('email')}\n"
+        f"- Deal value: {_val('deal_value_display')}\n"
+        f"- Intent score: {_val('intent_score')}/100\n"
+        f"- Buying signals: {signals_text}\n"
+        f"- Last activity: {_val('last_activity_description', 'unknown')}\n\n"
+        "Respond with ONLY this JSON (no markdown, no explanation, no extra text):\n"
+        "{\n"
+        '  "winning_argument": "Strategic reason why this lead should buy NOW. Reference their company, role, and signals. 20-150 words. NOT an email.",\n'
+        '  "draft_message": "Hi FirstName,\\n\\nEmail body 50-300 words...\\n\\nBest regards,\\nYour Sales Team",\n'
+        '  "confidence": 0.85\n'
+        "}\n\n"
+        "Rules:\n"
+        f"- winning_argument: internal strategic note for the sales rep, NOT an email. "
+        f"Explain WHY {_val('name')} at {_val('company')} should buy now. Mention signals. 20-150 words.\n"
+        f"- draft_message: outreach EMAIL to send to {_val('name')}. "
+        f"Start with 'Hi {_val('name').split()[0]},' — professional, specific, 50-300 words, no placeholders.\n"
+        "- confidence: decimal 0.0-1.0\n"
+        "- Return ONLY the JSON object, nothing else."
     )
 
 
-def _handle_tool_call(tool_name: str, arguments: dict, state: dict) -> str:
-    """Process a tool call and update agent state."""
-    # Safe nested object extraction — llama3.2:3b uneori returnează un string
-    # sub cheia "object" în loc de dict, deci verificăm tipul explicit
-    obj = arguments.get("object")
-    obj = obj if isinstance(obj, dict) else {}
+def _extract_json(text: str) -> dict | None:
+    """Extrage primul obiect JSON valid care conține winning_argument sau draft_message.
+    Gestionează cazul frecvent la llama3.2:3b unde JSON-ul e tăiat (lipsește } final).
+    """
+    if not text:
+        return None
 
-    if tool_name == "set_winning_argument":
-        raw = arguments.get("argument") or obj.get("argument", "")
-        raw_conf = arguments.get("confidence") or obj.get("confidence", 0.5)
-        # Dacă modelul pasează argument ca dict Python direct, extragem textul
-        if isinstance(raw, dict):
-            raw_str = (
-                raw.get("value") or
-                raw.get("argument") or
-                raw.get("text") or
-                ""
-            ).strip()
-        else:
-            raw_str = str(raw).strip()
-            # llama3.2:3b sometimes passes the schema definition as the value:
-            # {"type": "string", "description": "...", "value": "actual text"}
-            # Extract the real text from the "value" key if present.
-            try:
-                parsed = json.loads(raw_str)
-                if isinstance(parsed, dict):
-                    extracted = (
-                        parsed.get("value") or
-                        parsed.get("argument") or
-                        parsed.get("text") or
-                        ""
-                    )
-                    # Only use extracted if non-empty; otherwise keep original raw_str
-                    raw_str = str(extracted).strip() if extracted else raw_str
-            except (json.JSONDecodeError, TypeError, ValueError):
-                pass
-        state["winning_argument"] = raw_str
-        state["confidence"] = max(0.0, min(1.0, float(raw_conf)))
-        return json.dumps({"status": "ok"})
+    # 1. Încearcă direct
+    try:
+        return json.loads(text.strip())
+    except json.JSONDecodeError:
+        pass
 
-    if tool_name == "set_draft_message":
-        raw = arguments.get("message") or obj.get("message", "")
-        # llama3.2:3b poate pasa message ca dict Python (nu string JSON).
-        # Dacă e dict, extragem body direct fără str() → json.loads() roundtrip.
-        if isinstance(raw, dict):
-            raw_str = (
-                raw.get("body") or
-                raw.get("message") or
-                raw.get("content") or
-                ""
-            ).strip()
-        else:
-            raw_str = str(raw).strip()
-            # Unele modele returnează emailul wrapped într-un JSON string
-            # ex: '{"subject": "...", "body": "Hi Maria,...", "from": "[YOUR EMAIL]"}'
-            # Extragem doar câmpul body/message/content dacă e cazul
-            try:
-                parsed = json.loads(raw_str)
-                if isinstance(parsed, dict):
-                    raw_str = (
-                        parsed.get("body") or
-                        parsed.get("message") or
-                        parsed.get("content") or
-                        raw_str
-                    )
-            except (json.JSONDecodeError, TypeError, ValueError):
-                pass
-        # Replace placeholder signatures (toate variantele de case)
-        for placeholder, replacement in [
-            ("[YOUR NAME]", "Your Sales Team"),
-            ("[Your Name]", "Your Sales Team"),
-            ("[your name]", "Your Sales Team"),
-            ("[YOUR EMAIL]", "sales@company.com"),
-            ("[Your Email]", "sales@company.com"),
-            ("[your email]", "sales@company.com"),
-        ]:
-            raw_str = raw_str.replace(placeholder, replacement)
-        state["draft_message"] = raw_str
-        return json.dumps({"status": "ok"})
-
-    return json.dumps({"error": f"Unknown tool: {tool_name}"})
-
-
-def _run_once(lead: dict, state: dict) -> None:
-    """Single attempt of the agent loop. Updates state in-place."""
-    messages = [
-        {"role": "system", "content": _build_system_prompt()},
-        {"role": "user", "content": _build_user_prompt(lead)},
-    ]
-
-    # ── Agent loop — max 6 iterations ────────────────────────────────────────
-    for iteration in range(6):
-        both_done = bool(state["winning_argument"]) and bool(state["draft_message"])
-        if both_done:
-            break
-
-        # Force tool use until we have both outputs.
-        # llama3.2:3b sometimes ignores tools when using "auto", leaving outputs empty.
-        # When winning_argument is filled but draft_message is not, nudge the model.
-        if state["winning_argument"] and not state["draft_message"] and iteration >= 2:
-            messages.append({
-                "role": "user",
-                "content": "Good. Now call set_draft_message to write the personalized outreach email.",
-            })
-        tool_choice = "required"
+    # 2. Caută orice bloc care începe cu { și încearcă cu/fără } adăugat
+    match = re.search(r'\{.*', text, re.DOTALL)
+    if match:
+        candidate = match.group().strip()
+        # Încearcă as-is
         try:
-            response = client.chat.completions.create(
-                model=OLLAMA_MODEL,
-                messages=messages,
-                tools=TOOLS,
-                tool_choice=tool_choice,
-                temperature=0.4,
-            )
-        except Exception as e:
-            logger.error(f"Ollama call failed (iteration {iteration}): {e}")
-            break
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+        # Încearcă cu } adăugat (modelul uită closing brace)
+        try:
+            return json.loads(candidate + "}")
+        except json.JSONDecodeError:
+            pass
+        # Încearcă cu "} adăugat (câmpul string e deschis și lipsesc closing)
+        try:
+            return json.loads(candidate + '"}\n}')
+        except json.JSONDecodeError:
+            pass
 
-        message = response.choices[0].message
+    return None
 
-        if message.tool_calls:
-            messages.append(message)
-            for tool_call in message.tool_calls:
-                try:
-                    args = json.loads(tool_call.function.arguments)
-                except json.JSONDecodeError:
-                    args = {}
 
-                result = _handle_tool_call(tool_call.function.name, args, state)
-                logger.info(f"Tool called: {tool_call.function.name} → {result}")
+def _clean_placeholders(text: str) -> str:
+    """Înlocuiește placeholder-ele comune lăsate de model."""
+    replacements = {
+        "[YOUR NAME]": "Your Sales Team",
+        "[Your Name]": "Your Sales Team",
+        "[your name]": "Your Sales Team",
+        "[YOUR EMAIL]": "sales@company.com",
+        "[Your Email]": "sales@company.com",
+        "[your email]": "sales@company.com",
+        "[NAME]": "",
+        "[COMPANY]": "",
+        "[INSERT]": "",
+        "[DATE]": "",
+        "[ROLE]": "",
+    }
+    for placeholder, replacement in replacements.items():
+        text = text.replace(placeholder, replacement)
+    return text.strip()
 
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": result,
-                })
-            continue
 
-        break
+def _parse_result(data: dict) -> dict:
+    """Extrage și validează câmpurile din JSON-ul modelului."""
+    winning_argument = str(data.get("winning_argument") or "").strip()
+    draft_message = str(data.get("draft_message") or "").strip()
+
+    # Dacă draft_message e un dict (model a returnat {"body": "..."})
+    raw_dm = data.get("draft_message")
+    if isinstance(raw_dm, dict):
+        draft_message = (
+            raw_dm.get("body") or
+            raw_dm.get("message") or
+            raw_dm.get("content") or
+            ""
+        ).strip()
+
+    winning_argument = _clean_placeholders(winning_argument)
+    draft_message = _clean_placeholders(draft_message)
+
+    try:
+        confidence = max(0.0, min(1.0, float(data.get("confidence", 0.5))))
+    except (TypeError, ValueError):
+        confidence = 0.5
+
+    return {
+        "winning_argument": winning_argument,
+        "draft_message": draft_message,
+        "confidence": confidence,
+    }
 
 
 def run(lead: dict) -> dict:
     """
-    Run the CopilotAgent for a lead, with up to 3 attempts on empty output.
+    Run the CopilotAgent for a lead, cu până la 3 încercări.
 
     Args:
-        lead: dict with lead fields including signals and intent_score from LeadResearchAgent
+        lead: dict with lead fields including signals and intent_score
 
     Returns:
         dict with: winning_argument, draft_message, confidence
     """
-    for attempt in range(3):
-        state = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
-        _run_once(lead, state)
-        if state["winning_argument"] and state["draft_message"]:
-            break
-        if attempt < 2:
-            logger.warning(
-                f"Attempt {attempt + 1} produced incomplete output "
-                f"(wa={bool(state['winning_argument'])}, dm={bool(state['draft_message'])}), retrying..."
-            )
+    prompt = _build_prompt(lead)
+    result = None
 
-    return {
-        "winning_argument": state["winning_argument"],
-        "draft_message": state["draft_message"],
-        "confidence": state["confidence"],
-    }
+    for attempt in range(3):
+        try:
+            response = client.chat.completions.create(
+                model=OLLAMA_MODEL,
+                messages=[
+                    {"role": "system", "content": "You are a sales co-pilot. Always respond with valid JSON only."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.4,
+                max_tokens=1024,
+            )
+            content = response.choices[0].message.content or ""
+            logger.info(f"Attempt {attempt + 1} raw response: {content[:200]}")
+
+            data = _extract_json(content)
+            if data:
+                parsed = _parse_result(data)
+                if parsed["winning_argument"] and parsed["draft_message"]:
+                    result = parsed
+                    break
+                logger.warning(
+                    f"Attempt {attempt + 1} incomplete output "
+                    f"(wa={bool(parsed['winning_argument'])}, dm={bool(parsed['draft_message'])})"
+                )
+            else:
+                logger.warning(f"Attempt {attempt + 1} could not extract JSON from: {content[:150]}")
+        except Exception as e:
+            logger.error(f"Ollama call failed (attempt {attempt + 1}): {e}")
+
+    if not result:
+        result = {"winning_argument": "", "draft_message": "", "confidence": 0.5}
+
+    return result
