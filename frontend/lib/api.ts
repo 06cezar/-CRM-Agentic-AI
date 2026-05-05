@@ -51,27 +51,12 @@ export interface StatsAPI {
   pipeline_value_raw: number
 }
 
-export interface ScrapeJobAPI {
-  id: number
-  query: string
-  pages_requested: number
-  status: "pending" | "running" | "completed" | "failed"
-  scraped_count: number
-  leads_created: number
-  error_message: string | null
-  created_at: string
-  started_at: string | null
-  completed_at: string | null
-}
-
-export interface SearchQuerySuggestion {
-  query: string
-  reasoning: string
-  expected_title: string
-}
-
-export interface SearchQueryResponse {
-  queries: SearchQuerySuggestion[]
+export interface CopilotAPI {
+  winning_argument: string
+  draft_message: string
+  confidence: number
+  generated_at: string
+  is_cached: boolean
 }
 
 // ── API client ────────────────────────────────────────────────────────────────
@@ -112,6 +97,12 @@ export const api = {
   // ── Stats ──────────────────────────────────────────────────────────────────
   getStats: () => request<StatsAPI>("/stats"),
 
+  // ── Copilot ────────────────────────────────────────────────────────────────
+  getCopilot: (leadId: number) =>
+    request<CopilotAPI>(`/leads/${leadId}/copilot`),
+
+  regenerateCopilot: (leadId: number) =>
+    request<CopilotAPI>(`/leads/${leadId}/copilot/regenerate`, { method: "POST" }),
   // ── LinkedIn Scraper ───────────────────────────────────────────────────────
   uploadLinkedInCookies: (cookiesJson: string) =>
     request<{ status: string }>("/scraper/credentials", {

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-from agents import research_agent
+from agents import research_agent, copilot_agent
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -16,10 +16,21 @@ class LeadPayload(BaseModel):
     last_activity_description: Optional[str] = None
 
 
+class CopilotPayload(LeadPayload):
+    signals: list[str] = []
+    intent_score: Optional[int] = None
+
+
 class ResearchResult(BaseModel):
     intent_score: int
     signals: list[str]
     summary: str
+    confidence: float
+
+
+class CopilotResult(BaseModel):
+    winning_argument: str
+    draft_message: str
     confidence: float
 
 
@@ -28,6 +39,16 @@ def research_lead(payload: LeadPayload):
     """Rulează LeadResearchAgent pentru un lead și returnează scorul de intenție."""
     try:
         result = research_agent.run(payload.model_dump())
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
+
+
+@router.post("/copilot", response_model=CopilotResult)
+def copilot_lead(payload: CopilotPayload):
+    """Rulează CopilotAgent pentru un lead și returnează winning argument + draft email."""
+    try:
+        result = copilot_agent.run(payload.model_dump())
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")

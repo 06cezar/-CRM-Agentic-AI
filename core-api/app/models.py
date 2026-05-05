@@ -89,3 +89,16 @@ class AgentActivity(Base):
     payload = Column(JSONB, default=dict, nullable=False)
     status = Column(String, default="completed", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class CopilotResult(Base):
+    __tablename__ = "copilot_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), unique=True, nullable=False, index=True)
+    winning_argument = Column(Text, nullable=True)
+    draft_message = Column(Text, nullable=True)
+    confidence = Column(Float, nullable=True)
+    model_used = Column(String(100), nullable=True)
+    generated_at = Column(DateTime(timezone=True), nullable=True)
+    lead_snapshot = Column(JSONB, nullable=True)

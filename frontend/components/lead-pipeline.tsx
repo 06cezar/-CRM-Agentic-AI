@@ -28,9 +28,6 @@ export interface Lead {
   value: string
   lastActivity: string
   signals: string[]
-  // Copilot fields — rămân goale până la EPIC 6
-  winningArgument: string
-  draftMessage: string
 }
 
 // ── Mapare API → Lead UI ──────────────────────────────────────────────────────
@@ -47,8 +44,6 @@ function fromAPI(l: LeadAPI): Lead {
     value: l.deal_value_display ?? "—",
     lastActivity: l.last_activity_description ?? "No activity yet",
     signals: l.signals ?? [],
-    winningArgument: "",
-    draftMessage: "",
   }
 }
 
@@ -248,7 +243,8 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
       </div>
 
       {/* Lead list */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-1">
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="space-y-1 p-2">
           {/* Loading skeleton */}
           {loading &&
             Array.from({ length: 4 }).map((_, i) => (
