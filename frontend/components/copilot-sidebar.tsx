@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { Lead } from "@/components/lead-pipeline"
+import { api, type CopilotAPI } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import {
   Wand2,
@@ -20,6 +22,7 @@ import {
   Sparkles,
   X,
   ChevronRight,
+  RefreshCw,
 } from "lucide-react"
 
 interface CopilotSidebarProps {
@@ -28,12 +31,39 @@ interface CopilotSidebarProps {
 }
 
 export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
+  const [copilot, setCopilot] = useState<CopilotAPI | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [activeTab, setActiveTab] = useState<"argument" | "message">("argument")
 
+  useEffect(() => {
+    if (!lead) {
+      setCopilot(null)
+      return
+    }
+    setCopilot(null)
+    setLoading(true)
+    api.getCopilot(Number(lead.id))
+      .then(setCopilot)
+      .catch(() => setCopilot(null))
+      .finally(() => setLoading(false))
+  }, [lead?.id])
+
+  const handleRegenerate = async () => {
+    if (!lead) return
+    setRegenerating(true)
+    try {
+      const result = await api.regenerateCopilot(Number(lead.id))
+      setCopilot(result)
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   const handleCopyEmail = () => {
-    if (lead) {
-      navigator.clipboard.writeText(lead.draftMessage)
+    if (copilot?.draft_message) {
+      navigator.clipboard.writeText(copilot.draft_message)
       setCopiedEmail(true)
       setTimeout(() => setCopiedEmail(false), 2000)
     }
@@ -171,15 +201,33 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
             <div className="space-y-4">
               {/* Winning argument */}
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Target className="size-4 text-primary" />
-                  <span className="text-sm font-semibold text-foreground">
-                    Winning Strategy
-                  </span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Target className="size-4 text-primary" />
+                    <span className="text-sm font-semibold text-foreground">
+                      Winning Strategy
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={handleRegenerate}
+                    disabled={regenerating || loading}
+                    className="text-muted-foreground hover:text-foreground"
+                    title="Regenerate"
+                  >
+                    <RefreshCw className={cn("size-3.5", regenerating && "animate-spin")} />
+                  </Button>
                 </div>
-                {lead.winningArgument ? (
+                {loading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-5/6" />
+                    <Skeleton className="h-3 w-4/6" />
+                  </div>
+                ) : copilot?.winning_argument ? (
                   <p className="text-sm text-foreground leading-relaxed">
-                    {lead.winningArgument}
+                    {copilot.winning_argument}
                   </p>
                 ) : (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -229,12 +277,34 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                       Personalized Email
                     </span>
                   </div>
-                  <Badge variant="outline" className="text-[10px]">
-                    AI Generated
-                  </Badge>
+                  <div className="flex items-center gap-1">
+                    <Badge variant="outline" className="text-[10px]">
+                      AI Generated
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={handleRegenerate}
+                      disabled={regenerating || loading}
+                      className="text-muted-foreground hover:text-foreground"
+                      title="Regenerate"
+                    >
+                      <RefreshCw className={cn("size-3.5", regenerating && "animate-spin")} />
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-sm text-foreground whitespace-pre-line leading-relaxed bg-secondary/30 rounded-md p-3 font-mono text-xs">
-                  {lead.draftMessage || (
+                <div className="text-sm text-foreground whitespace-pre-line leading-relaxed bg-secondary/30 rounded-md p-3 font-mono text-xs min-h-[80px]">
+                  {loading ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-5/6" />
+                      <Skeleton className="h-3 w-full" />
+                      <Skeleton className="h-3 w-3/4" />
+                      <Skeleton className="h-3 w-5/6" />
+                    </div>
+                  ) : copilot?.draft_message ? (
+                    copilot.draft_message
+                  ) : (
                     <span className="text-muted-foreground not-italic font-sans">
                       No draft yet — research this lead to generate a personalized email.
                     </span>
@@ -248,6 +318,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                   variant="outline"
                   className="flex-1 gap-2"
                   onClick={handleCopyEmail}
+                  disabled={!copilot?.draft_message}
                 >
                   {copiedEmail ? (
                     <>
@@ -263,7 +334,12 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                 </Button>
                 <Button
                   className="flex-1 gap-2"
-                  onClick={() => window.open(`mailto:${lead.email}?body=${encodeURIComponent(lead.draftMessage)}`)}
+                  disabled={!copilot?.draft_message}
+                  onClick={() =>
+                    window.open(
+                      `mailto:${lead.email}?body=${encodeURIComponent(copilot?.draft_message ?? "")}`
+                    )
+                  }
                 >
                   <Send className="size-4" />
                   Send Email

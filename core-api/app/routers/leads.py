@@ -42,6 +42,7 @@ class LeadCreate(BaseModel):
     currency: str = "EUR"
     last_activity_description: Optional[str] = None
     status: str = "new"
+    linkedin_url: Optional[str] = None
 
 
 class LeadUpdate(BaseModel):
@@ -73,6 +74,7 @@ class LeadResponse(BaseModel):
     signals: list
     assigned_to: Optional[int]
     status: str
+    linkedin_url: Optional[str] = None
     created_at: datetime
 
     @computed_field
@@ -137,6 +139,76 @@ def _run_research_in_background(lead_id: int) -> None:
         db.add(activity)
         db.commit()
         logger.info(f"Background research completed for lead {lead_id}, score={result['intent_score']}")
+
+        # ── Step 2: CopilotAgent — pre-compute insights după research ────────
+        try:
+            copilot_payload = {
+                "id": lead.id,
+                "name": lead.name,
+                "company": lead.company,
+                "role": lead.role,
+                "email": lead.email,
+                "deal_value_display": _format_deal_value(lead.deal_value, lead.currency),
+                "last_activity_description": lead.last_activity_description,
+                "signals": result["signals"],
+                "intent_score": result["intent_score"],
+            }
+            with httpx.Client(timeout=90.0) as copilot_client:
+                copilot_response = copilot_client.post(
+                    f"{AI_SERVICE_URL}/agent/copilot", json=copilot_payload
+                )
+                copilot_response.raise_for_status()
+                copilot_result = copilot_response.json()
+
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+            from app.models import CopilotResult
+            from datetime import datetime as dt
+
+            now = datetime.now(timezone.utc)
+            snapshot = {
+                "name": lead.name,
+                "company": lead.company,
+                "role": lead.role,
+                "signals": result["signals"],
+                "intent_score": result["intent_score"],
+                "last_activity_description": lead.last_activity_description,
+            }
+            stmt = pg_insert(CopilotResult).values(
+                lead_id=lead.id,
+                winning_argument=copilot_result["winning_argument"],
+                draft_message=copilot_result["draft_message"],
+                confidence=copilot_result["confidence"],
+                model_used=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+                generated_at=now,
+                lead_snapshot=snapshot,
+            ).on_conflict_do_update(
+                index_elements=["lead_id"],
+                set_={
+                    "winning_argument": copilot_result["winning_argument"],
+                    "draft_message": copilot_result["draft_message"],
+                    "confidence": copilot_result["confidence"],
+                    "model_used": os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+                    "generated_at": now,
+                    "lead_snapshot": snapshot,
+                },
+            )
+            db.execute(stmt)
+
+            copilot_activity = AgentActivity(
+                lead_id=lead.id,
+                lead_name=lead.name,
+                agent_name="CopilotAgent",
+                action_type="insight",
+                message=f"Generated co-pilot insights for {lead.name}",
+                payload=copilot_result,
+                status="completed",
+            )
+            db.add(copilot_activity)
+            db.commit()
+            logger.info(f"Background copilot completed for lead {lead_id}")
+        except Exception as copilot_err:
+            logger.warning(f"CopilotAgent failed in background for lead {lead_id}: {copilot_err}")
+            db.rollback()
 
     except Exception as e:
         logger.error(f"Unexpected error in background research for lead {lead_id}: {e}")

@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, func
+from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, func, BigInteger, Boolean
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -12,7 +13,21 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(String, default="sales_rep", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_verified = Column(Boolean, default=False)
+    connected_accounts = relationship("ConnectedAccount", back_populates="owner")
 
+class ConnectedAccount(Base):
+    __tablename__ = "connected_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    provider = Column(String, nullable=False, default="google")  # ex: "google"
+    email = Column(String, index=True)
+    refresh_token = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_history_id = Column(BigInteger, nullable=True)
+    is_watching = Column(Boolean, default=False)
+    owner = relationship("User", back_populates="connected_accounts")
 
 class Lead(Base):
     __tablename__ = "leads"
@@ -31,6 +46,33 @@ class Lead(Base):
     signals = Column(JSONB, default=list, nullable=False)
     assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     status = Column(String, default="new", nullable=False)
+    linkedin_url = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class LinkedInCredential(Base):
+    __tablename__ = "linkedin_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    cookies_json = Column(Text, nullable=False)
+    uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
+    is_active = Column(Boolean, default=True, nullable=False)
+
+
+class ScrapeJob(Base):
+    __tablename__ = "scrape_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    query = Column(Text, nullable=False)
+    pages_requested = Column(Integer, nullable=False)
+    status = Column(String, default="pending", nullable=False)
+    scraped_count = Column(Integer, default=0, nullable=False)
+    leads_created = Column(Integer, default=0, nullable=False)
+    error_message = Column(Text, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -47,3 +89,16 @@ class AgentActivity(Base):
     payload = Column(JSONB, default=dict, nullable=False)
     status = Column(String, default="completed", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class CopilotResult(Base):
+    __tablename__ = "copilot_results"
+
+    id = Column(Integer, primary_key=True, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), unique=True, nullable=False, index=True)
+    winning_argument = Column(Text, nullable=True)
+    draft_message = Column(Text, nullable=True)
+    confidence = Column(Float, nullable=True)
+    model_used = Column(String(100), nullable=True)
+    generated_at = Column(DateTime(timezone=True), nullable=True)
+    lead_snapshot = Column(JSONB, nullable=True)

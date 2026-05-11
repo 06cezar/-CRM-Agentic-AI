@@ -8,79 +8,166 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
-  test_backend:
-    name: Run Backend Tests
+  lint:
+    name: Code Quality
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Ruff
+        run: pip install ruff
+      - name: Run Ruff
+        run: |
+          ruff check ./core-api || echo "Ruff a gasit probleme in core-api"
+          ruff check ./ai-service || echo "Ruff a gasit probleme in ai-service"
+  test_core_api:
+    name: Test Core API
+    needs: lint
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
-
-      - name: Install Core API dependencies
+      - name: Building .env file
+        run: |
+          echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" > .env
+          echo "AI_SERVICE_URL=http://localhost:8000" >> .env
+          echo "BACKEND_URL=http://localhost:8001" >> .env
+          echo "FRONTEND_URL=http://localhost:3000" >> .env
+          echo "GOOGLE_CREDENTIALS_JSON=secrets.GOOGLE_CREDENTIALS_JSON" >> .env
+          echo "MAIL_FROM=secrets.MAIL_FROM" >> .env
+          echo "MAIL_FROM_NAME=secrets.MAIL_FROM_NAME" >> .env
+          echo "MAIL_PASSWORD=secrets.MAIL_PASSWORD" >> .env
+          echo "MAIL_PORT=secrets.MAIL_PORT" >> .env
+          echo "MAIL_SERVER=secrets.MAIL_SERVER" >> .env
+          echo "MAIL_USERNAME=secrets.MAIL_USERNAME" >> .env
+          echo "NGROK_AUTHTOKEN=secrets.NGROK_AUTHTOKEN" >> .env
+          echo "SECRET_KEY=secrets.SECRET_KEY" >> .env
+      - name: Install dependencies & Run Tests
         working-directory: ./core-api
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest httpx
+          pytest
+  test_ai_service:
+    needs: lint
+    name: Test AI Service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
 
-      - name: Run Core API Tests
-        working-directory: ./core-api
-        run: pytest
+      - name: Creare fisier .env pentru AI Service
+        run: |
+          # echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> ./ai-service/.env
+          # Adauga aici alte secrete specifice serviciului de AI
+          echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" > .env
+          echo "AI_SERVICE_URL=http://localhost:8000" >> .env
+          echo "BACKEND_URL=http://localhost:8001" >> .env
+          echo "FRONTEND_URL=http://localhost:3000" >> .env
+          echo "GOOGLE_CREDENTIALS_JSON=secrets.GOOGLE_CREDENTIALS_JSON" >> .env
+          echo "MAIL_FROM=secrets.MAIL_FROM" >> .env
+          echo "MAIL_FROM_NAME=secrets.MAIL_FROM_NAME" >> .env
+          echo "MAIL_PASSWORD=secrets.MAIL_PASSWORD" >> .env
+          echo "MAIL_PORT=secrets.MAIL_PORT" >> .env
+          echo "MAIL_SERVER=secrets.MAIL_SERVER" >> .env
+          echo "MAIL_USERNAME=secrets.MAIL_USERNAME" >> .env
+          echo "NGROK_AUTHTOKEN=secrets.NGROK_AUTHTOKEN" >> .env
+          echo "SECRET_KEY=secrets.SECRET_KEY" >> .env
 
-      - name: Install AI Service dependencies
+      - name: Install dependencies & Run Tests
         working-directory: ./ai-service
         run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest httpx
-
-      - name: Run AI Service Tests
-        working-directory: ./ai-service
-        run: pytest
-
-  build-and-push:
-    needs: [test_backend]
-    name: Build and Push Docker Images
+          pytest
+  test_frontend:
+    needs: lint
+    name: Build Check Frontend
     runs-on: ubuntu-latest
-    # These permissions are required to push to GitHub Packages
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
+
+      - name: Install & Build
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+  build_and_push:
+    needs: [test_core_api, test_ai_service, test_frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    name: Publish to GHCR
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          # This token is automatically provided by GitHub, no setup needed
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
-          # Only push the image if we are on the main branch (not just a PR)
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ghcr.io/${{ github.repository_owner }}/crm-frontend:latest
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/crm-frontend:latest
+            ghcr.io/${{ github.repository_owner }}/crm-frontend:${{ github.sha }}
 
       - name: Build and push Core API
         uses: docker/build-push-action@v5
         with:
           context: ./core-api
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ghcr.io/${{ github.repository_owner }}/crm-core-api:latest
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/crm-core-api:latest
+            ghcr.io/${{ github.repository_owner }}/crm-core-api:${{ github.sha }}
 
       - name: Build and push AI Service
         uses: docker/build-push-action@v5
         with:
           context: ./ai-service
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ghcr.io/${{ github.repository_owner }}/crm-ai-service:latest
+
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/crm-ai-service:latest
+            ghcr.io/${{ github.repository_owner }}/crm-ai-service:${{ github.sha }}

@@ -1,0 +1,30 @@
+services:
+  frontend:
+    build: 
+      context: ./frontend
+      target: dev
+    container_name: crm-frontend
+    command: npm run dev # Suprascrie comanda din Dockerfile pentru Hot Reload
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Protejăm modulele instalate în container
+      - /app/.next
+    ports:
+      - "3000:3000"
+    networks:
+      - crm-network
+
+  core-api:
+    build: ./core-api
+    container_name: crm-core-api
+    # Activăm reload-ul uvicorn aici
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./core-api:/app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    networks:
+      - crm-network
+

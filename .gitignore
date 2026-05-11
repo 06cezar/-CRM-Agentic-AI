@@ -10,7 +10,8 @@ next.user-config.*
 
 # Environment variables
 .env*.local
-
+.env
+*/.env
 # Common ignores
 node_modules/
 .next/
@@ -21,6 +22,7 @@ docs/
 
 # Claude Code local settings
 .claude/
+.mcp.json
 
 # Presentations & generated slide assets
 presentations/
@@ -42,4 +44,11 @@ __pycache__/
 # TypeScript build cache
 frontend/tsconfig.tsbuildinfo
 
-ClAUDE.md
+
+core-api/secrets/
+core-api/.env
+core-api/secrets
+secrets
+secrets/*
+core-api/secrets/*
+
