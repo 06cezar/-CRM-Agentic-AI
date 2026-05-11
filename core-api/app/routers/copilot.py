@@ -3,12 +3,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime, timezone, timedelta
+from email.mime.text import MIMEText
+import base64
 import os
 import logging
 import httpx
 from app.database import get_db
-from app.models import Lead, CopilotResult, AgentActivity
+from app.models import Lead, CopilotResult, AgentActivity, ConnectedAccount
 from app.auth import get_current_user
+from app.google_auth import get_gmail_service
 
 logger = logging.getLogger(__name__)
 
@@ -176,3 +179,59 @@ def regenerate_copilot(
         generated_at=saved.generated_at,
         is_cached=False,
     )
+
+
+@router.post("/{lead_id}/copilot/send-email")
+def send_copilot_email(
+    lead_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    lead = db.query(Lead).filter(
+        Lead.id == lead_id,
+        (Lead.assigned_to == current_user.id) | (Lead.assigned_to == None),
+    ).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    cached = db.query(CopilotResult).filter(CopilotResult.lead_id == lead_id).first()
+    if not cached or not cached.draft_message:
+        raise HTTPException(
+            status_code=400,
+            detail="No draft message available. Generate copilot insights first.",
+        )
+
+    account = db.query(ConnectedAccount).filter(
+        ConnectedAccount.user_id == current_user.id,
+        ConnectedAccount.provider == "google",
+    ).first()
+    if not account:
+        raise HTTPException(
+            status_code=400,
+            detail="No connected Google account. Connect Gmail in Settings.",
+        )
+
+    try:
+        service = get_gmail_service(account)
+        message = MIMEText(cached.draft_message)
+        message["to"] = lead.email
+        message["subject"] = f"Following up — {lead.company}"
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+    except Exception as e:
+        logger.error("Gmail send failed: %s", e)
+        raise HTTPException(status_code=502, detail=f"Failed to send email: {str(e)}")
+
+    activity = AgentActivity(
+        lead_id=lead.id,
+        lead_name=lead.name,
+        agent_name="CopilotAgent",
+        action_type="email_sent",
+        message=f"Sent AI-drafted email to {lead.name} <{lead.email}>",
+        payload={},
+        status="completed",
+    )
+    db.add(activity)
+    db.commit()
+
+    return {"message": "Email sent successfully", "to": lead.email}

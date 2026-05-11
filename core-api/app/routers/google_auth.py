@@ -96,8 +96,19 @@ def google_callback(
         
     except Exception as e:
         db.rollback()
-        print(f"Eroare Callback: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Eroare la procesarea callback-ului: {str(e)}")
+        error_msg = str(e)
+        print(f"Eroare Callback: {error_msg}")
+        if "Scope has changed" in error_msg:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Permisiunea Gmail nu a fost acordată. "
+                    "Reconectează contul și acordă TOATE permisiunile cerute (inclusiv Gmail). "
+                    "Dacă problema persistă, adaugă 'Gmail API' în OAuth consent screen din Google Cloud Console, "
+                    "sau revocă accesul aplicației din myaccount.google.com/permissions și încearcă din nou."
+                ),
+            )
+        raise HTTPException(status_code=400, detail=f"Eroare la procesarea callback-ului: {error_msg}")
     
 @router.get("/get_connected_accounts")
 def get_connected_accounts(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

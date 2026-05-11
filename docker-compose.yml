@@ -96,7 +96,7 @@ services:
     restart: unless-stopped
   ngrok:
     image: ngrok/ngrok:latest
-    restart: always
+    restart: no
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
     command:
@@ -107,6 +107,8 @@ services:
       - "4040:4040" # Interfata web de inspectie ngrok
     depends_on:
       - core-api
+    networks:
+      - crm-network
 
 networks:
   crm-network:

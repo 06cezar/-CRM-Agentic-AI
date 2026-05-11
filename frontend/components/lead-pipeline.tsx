@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import {
   TrendingUp,
@@ -302,11 +303,14 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
               const isResearching = researchingId === lead.id
 
               return (
-                <button
+                <div
                   key={lead.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onSelectLead(lead)}
+                  onKeyDown={(e) => e.key === "Enter" && onSelectLead(lead)}
                   className={cn(
-                    "w-full rounded-lg p-3 text-left transition-all",
+                    "w-full rounded-lg p-3 text-left transition-all cursor-pointer",
                     isSelected
                       ? "bg-primary/10 border border-primary/30"
                       : "hover:bg-accent/50 border border-transparent"
@@ -398,10 +402,11 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                       )}
                     />
                   </div>
-                </button>
+                </div>
               )
             })}
-      </div>
+        </div>
+      </ScrollArea>
     </div>
   )
 }

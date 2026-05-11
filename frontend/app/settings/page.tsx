@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import ConnectedAccounts from "@/components/get-connected-accounts";
 import { CommandHeader } from "@/components/command-header";
+import { X } from "lucide-react";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -79,11 +82,20 @@ export default function SettingsPage() {
     <div className="flex flex-col min-h-screen bg-background">
       <CommandHeader />
       <main className="flex-1 p-8 max-w-4xl mx-auto w-full">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Setari Platforma</h1>
-          <p className="text-gray-600">
-            Gestioneaza integrarile si preferintele contului tau de freelancer.
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Setari Platforma</h1>
+            <p className="text-gray-600">
+              Gestioneaza integrarile si preferintele contului tau de freelancer.
+            </p>
+          </div>
+          <button
+            onClick={() => router.push("/")}
+            className="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Închide setările"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
