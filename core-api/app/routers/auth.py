@@ -48,7 +48,7 @@ def register(body: RegisterRequest, response: Response, background_tasks: Backgr
     user = User(
         email=body.email,
         full_name=body.full_name,
-        hashed_password=hash_password(body.password)
+        hashed_password=hash_password(body.password),
         is_verified=False,
     )
     db.add(user)
