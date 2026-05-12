@@ -55,6 +55,17 @@ def register(body: RegisterRequest, response: Response, background_tasks: Backgr
     db.commit()
     background_tasks.add_task(send_verification_email, user.email, verification_token)
     db.refresh(user)
+    from app.auth import create_access_token
+    access_token = create_access_token(data={"sub": str(new_user.email)})
+    
+    # 3. SETAREA COOKIE-ULUI (Pasul care lipseste)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,   # Important pentru securitate
+        samesite="lax",
+        # secure=True,   # Activeaza asta doar in productie cu HTTPS
+    )
 
     return user
 
