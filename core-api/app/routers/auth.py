@@ -27,7 +27,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     role: str
-    is_verified: bool
+    is_verified: bool = False
 
     class Config:
         from_attributes = True
