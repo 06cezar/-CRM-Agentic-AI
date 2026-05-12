@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { api, type LeadAPI } from "@/lib/api"
 import { toast } from "sonner"
+import { ScrollArea } from "@/components/ui/scroll-area" 
 
 // ── Lead interface (shared with Copilot sidebar) ─────────────────────────────
 
@@ -342,6 +343,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                           {lead.score === 0 ? "—" : `${lead.score}%`}
                         </span>
                       </div>
+                      
                       <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Building2 className="size-3" />
                         <span className="truncate">{lead.company}</span>
@@ -386,7 +388,9 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                           )}
                         </button>
                       </div>
+                      
                     </div>
+                    
 
                     {/* Arrow indicator */}
                     <ArrowUpRight
@@ -402,6 +406,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
               )
             })}
       </div>
+      </ScrollArea>
     </div>
   )
 }

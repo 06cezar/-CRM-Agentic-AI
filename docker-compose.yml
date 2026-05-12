@@ -24,9 +24,9 @@ services:
       - .env
     environment:
       - SCRAPER_SERVICE_URL=http://scraper-service:8002
-    depends_on:
-      db:
-        condition: service_healthy
+    #depends_on:
+      #db:
+      #  condition: service_healthy
     networks:
       - crm-network
     restart: unless-stopped
