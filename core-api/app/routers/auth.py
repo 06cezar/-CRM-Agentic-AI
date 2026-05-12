@@ -56,7 +56,7 @@ def register(body: RegisterRequest, response: Response, background_tasks: Backgr
     background_tasks.add_task(send_verification_email, user.email, verification_token)
     db.refresh(user)
     from app.auth import create_access_token
-    access_token = create_access_token(data={"sub": str(new_user.email)})
+    access_token = create_access_token(data={"sub": str(user.email)})
     
     # 3. SETAREA COOKIE-ULUI (Pasul care lipseste)
     response.set_cookie(
