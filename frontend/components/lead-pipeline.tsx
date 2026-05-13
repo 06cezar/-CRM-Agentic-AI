@@ -303,11 +303,19 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
               const isResearching = researchingId === lead.id
 
               return (
-                <button
+                <div
                   key={lead.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onSelectLead(lead)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      onSelectLead(lead)
+                    }
+                  }}
                   className={cn(
-                    "w-full rounded-lg p-3 text-left transition-all",
+                    "w-full rounded-lg p-3 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50",
                     isSelected
                       ? "bg-primary/10 border border-primary/30"
                       : "hover:bg-accent/50 border border-transparent"
@@ -366,7 +374,10 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                         ))}
                         {/* Research button — apare când nu e scor sau la hover */}
                         <button
-                          onClick={(e) => handleResearch(e, lead.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleResearch(e, lead.id)
+                          }}
                           disabled={isResearching}
                           className={cn(
                             "ml-auto flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
@@ -402,7 +413,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                       )}
                     />
                   </div>
-                </button>
+                </div>
               )
             })}
       </div>

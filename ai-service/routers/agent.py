@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 from agents import research_agent, copilot_agent
 
-router = APIRouter(prefix="/agent", tags=["agent"])
+router = APIRouter(tags=["agent"])
 
 
 class LeadPayload(BaseModel):

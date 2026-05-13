@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
   Wand2,
   Copy,
@@ -56,6 +57,10 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
     try {
       const result = await api.regenerateCopilot(Number(lead.id))
       setCopilot(result)
+      toast.success("Co-pilot insights updated")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to regenerate insights"
+      toast.error("Update failed", { description: msg })
     } finally {
       setRegenerating(false)
     }
