@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, leads, activity, stats, google_auth, gmail_watcher, scraper,copilot
+from app.routers import auth, leads, activity, stats, google_auth, gmail_watcher, scraper, copilot, icp
 
 app = FastAPI(title="CRM Core API")
 
@@ -18,6 +18,7 @@ app.include_router(leads.router)
 app.include_router(activity.router)
 app.include_router(stats.router)
 app.include_router(copilot.router)
+app.include_router(icp.router)
 app.include_router(google_auth.router)
 app.include_router(gmail_watcher.router)
 app.include_router(scraper.router)

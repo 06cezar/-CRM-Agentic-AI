@@ -102,3 +102,17 @@ class CopilotResult(Base):
     model_used = Column(String(100), nullable=True)
     generated_at = Column(DateTime(timezone=True), nullable=True)
     lead_snapshot = Column(JSONB, nullable=True)
+
+
+class ICPBlueprint(Base):
+    __tablename__ = "icp_blueprints"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    raw_inputs = Column(JSONB, nullable=False)
+    structured_data = Column(JSONB, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User")
