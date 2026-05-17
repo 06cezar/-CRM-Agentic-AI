@@ -27,7 +27,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     role: str
-    is_verified: bool
+    is_verified: bool = False
 
     class Config:
         from_attributes = True
@@ -48,12 +48,24 @@ def register(body: RegisterRequest, response: Response, background_tasks: Backgr
     user = User(
         email=body.email,
         full_name=body.full_name,
-        hashed_password=hash_password(body.password)
+        hashed_password=hash_password(body.password),
+        is_verified=False,
     )
     db.add(user)
     db.commit()
     background_tasks.add_task(send_verification_email, user.email, verification_token)
     db.refresh(user)
+    from app.auth import create_access_token
+    access_token = create_access_token(data={"sub": str(user.email)})
+    
+    # 3. SETAREA COOKIE-ULUI (Pasul care lipseste)
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,   # Important pentru securitate
+        samesite="lax",
+        # secure=True,   # Activeaza asta doar in productie cu HTTPS
+    )
 
     return user
 

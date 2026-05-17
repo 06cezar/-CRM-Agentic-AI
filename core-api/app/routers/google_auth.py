@@ -6,9 +6,22 @@ from app.models import ConnectedAccount, User
 from app.google_auth import get_connected_accounts_by_user_id, get_google_auth_url, SCOPES
 from app.auth import get_current_user
 from app.config import settings
+from app.gmail_watch import process_gmail_updates
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, BackgroundTasks
 from googleapiclient.discovery import build
 import base64
 import json
+from pydantic import BaseModel
+from typing import Optional
+
+class PubSubMessage(BaseModel):
+    data: str
+    messageId: str
+    publishTime: str
+
+class PubSubPayload(BaseModel):
+    message: PubSubMessage
+    subscription: str
 
 router = APIRouter(prefix="/api/auth/google", tags=["Google Authentication"])
 REDIRECT_URI = f"{settings.frontend_url}/api/auth/google/callback"
@@ -103,3 +116,57 @@ def google_callback(
 def get_connected_accounts(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     accounts = get_connected_accounts_by_user_id(current_user.id)
     return [{"id": acc.id, "email": acc.email, "provider": acc.provider, "is_watching": acc.is_watching} for acc in accounts]
+
+@router.post("/webhook")
+async def gmail_webhook(payload: PubSubPayload, background_tasks: BackgroundTasks):
+    """
+    Acknowledge receipt of the Google Pub/Sub notification immediately.
+    All processing is delegated to a background task.
+    """
+    # DEBUG PRINT: Verify request reachability
+    print(f"\n[DEBUG] WEBHOOK RECEIVED: messageId={payload.message.messageId}")
+
+    try:
+        # Decodăm datele pentru a extrage informațiile necesare pentru background task
+        message_bytes = base64.b64decode(payload.message.data)
+        message_json = json.loads(message_bytes.decode('utf-8'))
+
+        email_address = message_json.get('emailAddress')
+        new_history_id = message_json.get('historyId')
+
+        print(f"[DEBUG] DECODED: email={email_address}, historyId={new_history_id}")
+
+        if email_address and new_history_id:
+            # Pornim procesarea în background
+            background_tasks.add_task(handle_gmail_webhook_background, email_address, new_history_id)
+
+    except Exception as e:
+        print(f"[DEBUG] ERROR decoding webhook: {str(e)}")
+
+    return {"status": "accepted"}
+
+def handle_gmail_webhook_background(email_address: str, new_history_id: str):
+    """
+    Background worker to find the account and trigger updates.
+    """
+    from app.database import SessionLocal
+    db = SessionLocal()
+    try:
+        account = db.query(ConnectedAccount).filter(
+            ConnectedAccount.email == email_address
+        ).first()
+
+        if account:
+            # Verificăm dacă avem noutăți reale
+            if not account.last_history_id or int(new_history_id) > account.last_history_id:
+                # Actualizăm punctul de referință
+                account.last_history_id = int(new_history_id)
+                db.commit()
+
+                # Declanșăm procesarea mesajelor
+                process_gmail_updates(account.id, int(new_history_id))
+    except Exception as e:
+        print(f"Eroare în background la procesarea webhook-ului Gmail: {str(e)}")
+        db.rollback()
+    finally:
+        db.close()

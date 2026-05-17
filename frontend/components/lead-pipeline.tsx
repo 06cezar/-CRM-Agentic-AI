@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { api, type LeadAPI } from "@/lib/api"
 import { toast } from "sonner"
+import { ScrollArea } from "@/components/ui/scroll-area" 
 
 // ── Lead interface (shared with Copilot sidebar) ─────────────────────────────
 
@@ -307,9 +308,14 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                   role="button"
                   tabIndex={0}
                   onClick={() => onSelectLead(lead)}
-                  onKeyDown={(e) => e.key === "Enter" && onSelectLead(lead)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      onSelectLead(lead)
+                    }
+                  }}
                   className={cn(
-                    "w-full rounded-lg p-3 text-left transition-all cursor-pointer",
+                    "w-full rounded-lg p-3 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50",
                     isSelected
                       ? "bg-primary/10 border border-primary/30"
                       : "hover:bg-accent/50 border border-transparent"
@@ -345,6 +351,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                           {lead.score === 0 ? "—" : `${lead.score}%`}
                         </span>
                       </div>
+                      
                       <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Building2 className="size-3" />
                         <span className="truncate">{lead.company}</span>
@@ -367,7 +374,10 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                         ))}
                         {/* Research button — apare când nu e scor sau la hover */}
                         <button
-                          onClick={(e) => handleResearch(e, lead.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleResearch(e, lead.id)
+                          }}
                           disabled={isResearching}
                           className={cn(
                             "ml-auto flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
@@ -389,7 +399,9 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                           )}
                         </button>
                       </div>
+                      
                     </div>
+                    
 
                     {/* Arrow indicator */}
                     <ArrowUpRight
@@ -405,6 +417,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
               )
             })}
       </div>
+      </ScrollArea>
     </div>
   )
 }

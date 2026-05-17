@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, func, BigInteger, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Text, Numeric, ForeignKey, func, BigInteger, Boolean, Float
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -102,3 +102,31 @@ class CopilotResult(Base):
     model_used = Column(String(100), nullable=True)
     generated_at = Column(DateTime(timezone=True), nullable=True)
     lead_snapshot = Column(JSONB, nullable=True)
+
+
+class ICPBlueprint(Base):
+    __tablename__ = "icp_blueprints"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    raw_inputs = Column(JSONB, nullable=False)
+    structured_data = Column(JSONB, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user = relationship("User")
+
+
+class Email(Base):
+    __tablename__ = "emails"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True, index=True)
+    email_id = Column(String, unique=True, index=True, nullable=False)
+    subject = Column(String, nullable=False)
+    s3_path = Column(String, nullable=False)
+    ai_reasoning = Column(Text, nullable=True)
+    classification_score = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
