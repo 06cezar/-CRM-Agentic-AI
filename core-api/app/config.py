@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     mail_from_name: str
     secret_key: str
     
+    # MinIO Settings
+    minio_endpoint: str = "minio:9000"  # Default to service name in Docker network
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_bucket_name: str = "crm-emails"
+    minio_secure: bool = False
+
+    # Ollama Settings
+    ollama_base_url: str = "http://localhost:11434"
+    email_classifier_model: str = "llama3.2:3b"
+    
     # Configurare pentru a citi si din fisier daca variabilele de mediu lipsesc
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

@@ -11,6 +11,8 @@ from googleapiclient.discovery import build
 import base64
 import json
 from pydantic import BaseModel
+from typing import Optional
+
 class WatchToggleRequest(BaseModel):
     account_id: int
     active: bool
@@ -96,42 +98,6 @@ def set_watch_status(payload: WatchToggleRequest, db: Session = Depends(get_db),
     db.commit()
     
     return {"id": account.id, "is_watching": account.is_watching}
-
-
-@router.post("/webhook")
-async def gmail_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    # 1. Primim pachetul de la Pub/Sub
-    data = await request.json()
-    
-    if "message" not in data:
-        return {"status": "ignored"}
-    try:
-
-        # 2. Decodăm datele (Google trimite un JSON criptat în Base64 sub cheia 'data')
-        message_bytes = base64.b64decode(data['message']['data'])
-        message_json = json.loads(message_bytes.decode('utf-8'))
-
-        email_address = message_json.get('emailAddress')
-        new_history_id = message_json.get('historyId')
-        # 3. Găsim contul conectat în DB
-        account = db.query(ConnectedAccount).filter(
-            ConnectedAccount.email == email_address
-        ).first()
-
-        if account and new_history_id:
-            # Verificăm dacă avem noutăți reale (historyId mai mare decât cel salvat)
-            if not account.last_history_id or int(new_history_id) > account.last_history_id:
-                # AICI DECLANȘĂM LOGICA DE CRM
-                background_tasks.add_task(process_gmail_updates, account.id, new_history_id)
-
-                # Actualizăm punctul de referință
-                account.last_history_id = new_history_id
-                db.commit()
-    except Exception as e:
-        print(f"Eroare la procesarea webhook-ului: {str(e)}")
-        return {"status": "error", "message": str(e)}
-
-    return {"status": "accepted"}
 
 @router.post("/watch/{account_id}")
 def restart_watch(account_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
