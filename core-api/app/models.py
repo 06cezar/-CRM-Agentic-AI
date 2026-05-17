@@ -116,3 +116,17 @@ class ICPBlueprint(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     user = relationship("User")
+
+
+class Email(Base):
+    __tablename__ = "emails"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True, index=True)
+    email_id = Column(String, unique=True, index=True, nullable=False)
+    subject = Column(String, nullable=False)
+    s3_path = Column(String, nullable=False)
+    ai_reasoning = Column(Text, nullable=True)
+    classification_score = Column(Integer, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
