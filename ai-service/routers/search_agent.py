@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from agents import search_query_agent
 
-router = APIRouter(prefix="/agent", tags=["agent"])
+router = APIRouter(tags=["agent"])
 
 
 class LeadSummary(BaseModel):

@@ -12,10 +12,8 @@ import httpx
 from app.database import get_db, SessionLocal
 from app.models import Lead, AgentActivity, User
 from app.auth import get_current_user
-
+from app.config import settings
 logger = logging.getLogger(__name__)
-
-AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:8001")
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -116,7 +114,7 @@ def _run_research_in_background(lead_id: int) -> None:
 
         try:
             with httpx.Client(timeout=60.0) as client:
-                response = client.post(f"{AI_SERVICE_URL}/agent/research", json=payload)
+                response = client.post(f"{settings.ai_service_url}/agent/research", json=payload)
                 response.raise_for_status()
                 result = response.json()
         except httpx.HTTPError as e:
@@ -155,7 +153,7 @@ def _run_research_in_background(lead_id: int) -> None:
             }
             with httpx.Client(timeout=90.0) as copilot_client:
                 copilot_response = copilot_client.post(
-                    f"{AI_SERVICE_URL}/agent/copilot", json=copilot_payload
+                    f"{settings.ai_service_url}/agent/copilot", json=copilot_payload
                 )
                 copilot_response.raise_for_status()
                 copilot_result = copilot_response.json()
@@ -340,7 +338,7 @@ def research_lead(
 
     try:
         with httpx.Client(timeout=60.0) as client:
-            response = client.post(f"{AI_SERVICE_URL}/agent/research", json=payload)
+            response = client.post(f"{settings.ai_service_url}/agent/research", json=payload)
             response.raise_for_status()
             result = response.json()
     except httpx.HTTPError as e:

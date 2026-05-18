@@ -24,6 +24,7 @@ class FakeUser:
     full_name: str = "Test User"
     role: str = "sales_rep"
     hashed_password: str = ""
+    is_verified: bool = True
 
 
 def _make_db(existing_user=None):

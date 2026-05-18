@@ -153,4 +153,6 @@ export const api = {
 
   suggestSearchQueries: () =>
     request<SearchQueryResponse>("/scraper/suggest-queries", { method: "POST" }),
+
+  request: request,
 }

@@ -19,7 +19,7 @@ node_modules/
 
 # Local documentation (not for version control)
 docs/
-
+.idea
 # Claude Code local settings
 .claude/
 .mcp.json

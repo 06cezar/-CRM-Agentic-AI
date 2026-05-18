@@ -12,10 +12,10 @@ from app.database import get_db
 from app.models import Lead, CopilotResult, AgentActivity, ConnectedAccount
 from app.auth import get_current_user
 from app.google_auth import get_gmail_service
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-AI_SERVICE_URL = os.getenv("AI_SERVICE_URL", "http://localhost:8001")
 CACHE_TTL_HOURS = 24
 
 router = APIRouter(prefix="/leads", tags=["copilot"])
@@ -49,9 +49,16 @@ def _build_copilot_payload(lead: Lead) -> dict:
 def _call_copilot_agent(lead: Lead) -> dict:
     payload = _build_copilot_payload(lead)
     with httpx.Client(timeout=90.0) as client:
-        response = client.post(f"{AI_SERVICE_URL}/agent/copilot", json=payload)
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = client.post(f"{settings.ai_service_url}/agent/copilot", json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.error(f"AI Service error {e.response.status_code}: {e.response.text}")
+            raise e
+        except Exception as e:
+            logger.error(f"AI Service connection failed: {str(e)}")
+            raise e
 
 
 def _upsert_copilot_result(db: Session, lead: Lead, result: dict) -> CopilotResult:

@@ -225,6 +225,14 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
                   <UserCog className="size-4" />
                   General Settings
                 </Link>
+                <Link
+                  href="/icp"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  onClick={() => setSettingsOpen(false)}
+                >
+                  <Cpu className="size-4" />
+                  ICP Builder
+                </Link>
                 <a
                   href="http://localhost:8000/docs"
                   target="_blank"
