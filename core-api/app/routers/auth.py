@@ -40,33 +40,28 @@ class ResetPasswordRequest(BaseModel):
 
 
 
-@router.post("/register", response_model=UserResponse, status_code=201, )
+@router.post("/register", response_model=UserResponse, status_code=201)
 def register(body: RegisterRequest, response: Response, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    from app.config import settings
     if db.query(User).filter(User.email == body.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-    verification_token = create_email_verification_token(body.email)
+
+    smtp_configured = bool(settings.mail_username and settings.mail_password)
+
     user = User(
         email=body.email,
         full_name=body.full_name,
         hashed_password=hash_password(body.password),
-        is_verified=False,
+        is_verified=not smtp_configured,
     )
     db.add(user)
     db.commit()
-    background_tasks.add_task(send_verification_email, user.email, verification_token)
-    db.refresh(user)
-    from app.auth import create_access_token
-    access_token = create_access_token(data={"sub": str(user.email)})
-    
-    # 3. SETAREA COOKIE-ULUI (Pasul care lipseste)
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,   # Important pentru securitate
-        samesite="lax",
-        # secure=True,   # Activeaza asta doar in productie cu HTTPS
-    )
 
+    if smtp_configured:
+        verification_token = create_email_verification_token(body.email)
+        background_tasks.add_task(send_verification_email, user.email, verification_token)
+
+    db.refresh(user)
     return user
 
 class VerifyTokenRequest(BaseModel):

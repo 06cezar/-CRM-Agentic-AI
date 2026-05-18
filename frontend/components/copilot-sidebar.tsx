@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react"
 import type { Lead } from "@/components/lead-pipeline"
 import { api, type CopilotAPI } from "@/lib/api"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
-import { toast } from "sonner"
 import {
   Wand2,
   Copy,
@@ -35,6 +35,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
   const [copilot, setCopilot] = useState<CopilotAPI | null>(null)
   const [loading, setLoading] = useState(false)
   const [regenerating, setRegenerating] = useState(false)
+  const [sending, setSending] = useState(false)
   const [copiedEmail, setCopiedEmail] = useState(false)
   const [activeTab, setActiveTab] = useState<"argument" | "message">("argument")
 
@@ -71,6 +72,20 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
       navigator.clipboard.writeText(copilot.draft_message)
       setCopiedEmail(true)
       setTimeout(() => setCopiedEmail(false), 2000)
+    }
+  }
+
+  const handleSendEmail = async () => {
+    if (!lead) return
+    setSending(true)
+    try {
+      await api.sendCopilotEmail(Number(lead.id))
+      toast.success("Email sent", { description: `Sent to ${lead.email}` })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to send email"
+      toast.error("Send failed", { description: msg })
+    } finally {
+      setSending(false)
     }
   }
 
@@ -156,7 +171,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                 variant="outline"
                 size="sm"
                 className="flex-1 gap-1.5"
-                onClick={() => window.open(`mailto:${lead.email}`)}
+                onClick={() => window.open(`https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}`)}
               >
                 <Mail className="size-3.5" />
                 Email
@@ -339,15 +354,20 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                 </Button>
                 <Button
                   className="flex-1 gap-2"
-                  disabled={!copilot?.draft_message}
-                  onClick={() =>
-                    window.open(
-                      `mailto:${lead.email}?body=${encodeURIComponent(copilot?.draft_message ?? "")}`
-                    )
-                  }
+                  disabled={!copilot?.draft_message || sending}
+                  onClick={handleSendEmail}
                 >
-                  <Send className="size-4" />
-                  Send Email
+                  {sending ? (
+                    <>
+                      <RefreshCw className="size-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="size-4" />
+                      Send Email
+                    </>
+                  )}
                 </Button>
               </div>
             </div>

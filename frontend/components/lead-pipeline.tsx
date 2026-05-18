@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import {
   TrendingUp,
@@ -14,7 +15,6 @@ import {
 } from "lucide-react"
 import { api, type LeadAPI } from "@/lib/api"
 import { toast } from "sonner"
-import { ScrollArea } from "@/components/ui/scroll-area" 
 
 // ── Lead interface (shared with Copilot sidebar) ─────────────────────────────
 
@@ -416,7 +416,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                 </div>
               )
             })}
-      </div>
+        </div>
       </ScrollArea>
     </div>
   )

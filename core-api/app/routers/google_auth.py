@@ -109,9 +109,37 @@ def google_callback(
         
     except Exception as e:
         db.rollback()
-        print(f"Eroare Callback: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Eroare la procesarea callback-ului: {str(e)}")
+        error_msg = str(e)
+        print(f"Eroare Callback: {error_msg}")
+        if "Scope has changed" in error_msg or "invalid_grant" in error_msg or "Bad Request" in error_msg:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Permisiunea Gmail nu a fost acordată. "
+                    "Urmează acești pași: "
+                    "1) Du-te la console.cloud.google.com → APIs & Services → OAuth consent screen → Scopes → Add or remove scopes → adaugă 'https://www.googleapis.com/auth/gmail.modify'. "
+                    "2) Revocă accesul aplicației de la myaccount.google.com/permissions. "
+                    "3) Încearcă din nou reconectarea și bifează TOATE permisiunile."
+                ),
+            )
+        raise HTTPException(status_code=400, detail=f"Eroare la procesarea callback-ului: {error_msg}")
     
+@router.delete("/disconnect")
+def google_disconnect(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    account = db.query(ConnectedAccount).filter(
+        ConnectedAccount.user_id == current_user.id,
+        ConnectedAccount.provider == "google",
+    ).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="No connected Google account found.")
+    db.delete(account)
+    db.commit()
+    return {"message": "Google account disconnected successfully."}
+
+
 @router.get("/get_connected_accounts")
 def get_connected_accounts(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     accounts = get_connected_accounts_by_user_id(current_user.id)

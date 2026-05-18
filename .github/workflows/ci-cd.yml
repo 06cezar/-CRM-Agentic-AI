@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
@@ -16,7 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
       - name: Install Ruff
         run: pip install ruff
       - name: Run Ruff
@@ -46,9 +46,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name : Building .env file
+          python-version: "3.11"
+          cache: "pip"
+      - name: Building .env file
         run: |
           echo "DATABASE_URL=postgresql://test_user:test_password@localhost:5432/test_db" >> ./core-api/.env
           echo "AI_SERVICE_URL=http://localhost:8000" >> ./core-api/.env
@@ -79,9 +79,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
-      
+          python-version: "3.11"
+          cache: "pip"
+
       - name: Creare fisier .env pentru AI Service
         run: |
           # echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> ./ai-service/.env
@@ -116,10 +116,10 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: './frontend/package-lock.json'
-      
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "./frontend/package-lock.json"
+
       - name: Install & Build
         working-directory: ./frontend
         run: |
@@ -136,7 +136,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -166,6 +166,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./ai-service
+
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/crm-ai-service:latest
