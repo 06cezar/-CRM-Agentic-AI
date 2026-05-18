@@ -1,38 +1,41 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import ConnectedAccounts from "@/components/get-connected-accounts";
 import { CommandHeader } from "@/components/command-header";
 import { X } from "lucide-react";
 
-export default function SettingsPage() {
+function SettingsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // State-uri noi pentru verificarea conexiunii
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  // Verificam daca userul este deja conectat cand se incarca pagina
+  // Citește rezultatul callback-ului OAuth din URL
   useEffect(() => {
-    const fetchUserStatus = async () => {
-      try {
-        // Apeleaza ruta ta care returneaza datele userului curent (ex: /api/users/me)
-        const response = await fetch(`${apiUrl}/auth/me`, {
-          method: "GET",
-          credentials: "include" // Ca sa trimita cookie-ul de sesiune
-        });
+    const errorParam = searchParams.get("error");
+    const connectedParam = searchParams.get("connected");
+    if (errorParam) setError(decodeURIComponent(errorParam));
+    if (connectedParam === "true") setSuccessMsg("Contul Google a fost conectat cu succes!");
+  }, [searchParams]);
 
+  // Verifică dacă există un ConnectedAccount de tip google
+  useEffect(() => {
+    const checkConnected = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/api/auth/google/get_connected_accounts`, {
+          credentials: "include",
+        });
         if (response.ok) {
-          const userData = await response.json();
-          // Verificam daca backend-ul ne spune ca are token-ul (adapteaza cheia daca o trimiti altfel din FastAPI)
-          if (userData.google_refresh_token) {
-            setIsGoogleConnected(true);
-          }
+          const accounts = await response.json();
+          setIsGoogleConnected(accounts.length > 0);
         }
       } catch (err) {
         console.error("Eroare la preluarea statusului Google:", err);
@@ -40,8 +43,7 @@ export default function SettingsPage() {
         setIsCheckingStatus(false);
       }
     };
-
-    fetchUserStatus();
+    checkConnected();
   }, [apiUrl]);
 
   const handleGoogleConnect = async () => {
@@ -152,6 +154,11 @@ export default function SettingsPage() {
             )}
           </div>
             <ConnectedAccounts />
+          {successMsg && (
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-md text-sm">
+              {successMsg}
+            </div>
+          )}
           {error && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
               {error}
@@ -160,5 +167,13 @@ export default function SettingsPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center">Se incarca...</div>}>
+      <SettingsContent />
+    </Suspense>
   );
 }

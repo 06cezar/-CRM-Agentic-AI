@@ -111,14 +111,15 @@ def google_callback(
         db.rollback()
         error_msg = str(e)
         print(f"Eroare Callback: {error_msg}")
-        if "Scope has changed" in error_msg:
+        if "Scope has changed" in error_msg or "invalid_grant" in error_msg or "Bad Request" in error_msg:
             raise HTTPException(
                 status_code=400,
                 detail=(
                     "Permisiunea Gmail nu a fost acordată. "
-                    "Reconectează contul și acordă TOATE permisiunile cerute (inclusiv Gmail). "
-                    "Dacă problema persistă, adaugă 'Gmail API' în OAuth consent screen din Google Cloud Console, "
-                    "sau revocă accesul aplicației din myaccount.google.com/permissions și încearcă din nou."
+                    "Urmează acești pași: "
+                    "1) Du-te la console.cloud.google.com → APIs & Services → OAuth consent screen → Scopes → Add or remove scopes → adaugă 'https://www.googleapis.com/auth/gmail.modify'. "
+                    "2) Revocă accesul aplicației de la myaccount.google.com/permissions. "
+                    "3) Încearcă din nou reconectarea și bifează TOATE permisiunile."
                 ),
             )
         raise HTTPException(status_code=400, detail=f"Eroare la procesarea callback-ului: {error_msg}")
