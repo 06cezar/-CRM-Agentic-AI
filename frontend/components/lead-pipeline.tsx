@@ -99,6 +99,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
   const [researchError, setResearchError] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "hot" | "warm" | "cool">("all")
 
+  // Fetch complet — înlocuiește toată lista și reordonează (folosit la mount + refresh manual)
   const fetchLeads = useCallback(async () => {
     try {
       const data = await api.getLeads()
@@ -108,6 +109,26 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
       setFetchError(true)
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  // Fetch silențios — merge doar scorurile/semnalele în leads existente fără a schimba
+  // ordinea sau a reseta scroll-ul. Folosit de polling-ul din background.
+  const fetchLeadsSilent = useCallback(async () => {
+    try {
+      const data = await api.getLeads()
+      const byId = new Map(data.map((l) => [String(l.id), fromAPI(l)]))
+      setLeads((prev) =>
+        prev.map((lead) => {
+          const updated = byId.get(lead.id)
+          if (!updated) return lead
+          // Actualizează doar câmpurile care se schimbă după research
+          return { ...lead, score: updated.score, signals: updated.signals, value: updated.value }
+        })
+      )
+      setFetchError(false)
+    } catch {
+      // ignoră erorile silențioase
     }
   }, [])
 
@@ -124,6 +145,16 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
       }
     }
   }, [leads, selectedLead, onSelectLead])
+
+  // Auto-refresh cât timp există leads fără scor (research în curs în background).
+  // Folosește fetchLeadsSilent — nu schimbă ordinea, nu resetează scroll-ul.
+  // Se oprește singur când toate leads-urile au scor.
+  useEffect(() => {
+    const hasPending = leads.some((l) => !l.score)
+    if (!hasPending) return
+    const interval = setInterval(fetchLeadsSilent, 5_000)
+    return () => clearInterval(interval)
+  }, [leads, fetchLeadsSilent])
 
   async function handleResearch(e: React.MouseEvent, leadId: string) {
     e.stopPropagation()

@@ -48,6 +48,9 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
     setCopilot(null)
     setLoading(true)
 
+    // `cancelled` previne race condition-ul: dacă userul schimbă lead-ul
+    // înainte ca un request in-flight să se termine, ignorăm răspunsul vechi.
+    let cancelled = false
     let attempts = 0
     const MAX_ATTEMPTS = 30   // 30 × 3s = 90s max
     const INTERVAL_MS = 3000
@@ -55,23 +58,22 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
     const fetchCopilot = () => {
       api.getCopilot(Number(lead.id))
         .then((data) => {
+          if (cancelled) return  // lead s-a schimbat între timp — ignorăm
           if (data?.winning_argument) {
-            // Date reale disponibile — oprește polling-ul
             setCopilot(data)
             setLoading(false)
           } else {
             attempts++
             if (attempts < MAX_ATTEMPTS) {
-              // Încă se generează în background — mai încearcă
               setTimeout(fetchCopilot, INTERVAL_MS)
             } else {
-              // Timeout — afișează ce e (poate fallback gol)
               setCopilot(data)
               setLoading(false)
             }
           }
         })
         .catch(() => {
+          if (cancelled) return
           setCopilot(null)
           setLoading(false)
         })
@@ -80,8 +82,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
     fetchCopilot()
 
     return () => {
-      // Cleanup: oprește polling-ul dacă lead-ul se schimbă
-      attempts = MAX_ATTEMPTS
+      cancelled = true  // orice request in-flight va fi ignorat
     }
   }, [lead?.id])
 

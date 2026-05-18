@@ -148,7 +148,15 @@ def run(lead: dict) -> dict:
             response = client.chat.completions.create(
                 model=OLLAMA_MODEL,
                 messages=[
-                    {"role": "system", "content": "You are a sales analyst. Always respond with valid JSON only."},
+                    {"role": "system", "content": (
+                        "You are a brutally honest sales analyst. "
+                        "Always respond with valid JSON only. "
+                        "You MUST use the full 0-100 range: cold leads with bounced emails, "
+                        "inactive companies, or negative sentiment MUST score below 15. "
+                        "Leads with locked competitor contracts MUST score below 25. "
+                        "Never give a negative lead more than 35. "
+                        "Never default to 50 or 75 — every score must reflect the actual signals."
+                    )},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,

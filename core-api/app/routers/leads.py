@@ -133,7 +133,7 @@ def _run_research_in_background(lead_id: int) -> None:
         }
 
         try:
-            with httpx.Client(timeout=60.0) as client:
+            with httpx.Client(timeout=120.0) as client:
                 response = client.post(f"{settings.ai_service_url}/agent/research", json=payload)
                 response.raise_for_status()
                 result = response.json()
@@ -358,7 +358,7 @@ def research_lead(
 
     acquired = _ollama_lock.acquire(timeout=5)  # așteaptă max 5s să intre
     try:
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=120.0) as client:
             response = client.post(f"{settings.ai_service_url}/agent/research", json=payload)
             response.raise_for_status()
             result = response.json()
@@ -395,10 +395,11 @@ def research_lead(
     def _run_copilot(lead_id: int, lead_data: dict):
         bg_db = SessionLocal()
         try:
-            with httpx.Client(timeout=90.0) as c:
-                resp = c.post(f"{settings.ai_service_url}/agent/copilot", json=lead_data)
-                resp.raise_for_status()
-                copilot_result = resp.json()
+            with _ollama_lock:  # serializează cu coada de research
+                with httpx.Client(timeout=120.0) as c:
+                    resp = c.post(f"{settings.ai_service_url}/agent/copilot", json=lead_data)
+                    resp.raise_for_status()
+                    copilot_result = resp.json()
 
             now = datetime.now(timezone.utc)
             stmt = pg_insert(CopilotResult).values(
@@ -465,7 +466,8 @@ _COL_MAP = {
     "phone": "phone", "phone number": "phone", "mobile": "phone",
     "deal value": "deal_value", "amount": "deal_value", "deal amount": "deal_value", "value": "deal_value",
     "currency": "currency",
-    "last activity": "last_activity_description", "notes": "last_activity_description",
+    "last activity": "last_activity_description", "last_activity_description": "last_activity_description",
+    "last activity description": "last_activity_description", "notes": "last_activity_description",
     "description": "last_activity_description", "activity": "last_activity_description",
     "status": "status",
 }
