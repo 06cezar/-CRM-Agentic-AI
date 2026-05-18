@@ -75,9 +75,20 @@ function SettingsContent() {
   };
 
   const handleDisconnect = async () => {
-    // Aici poti face un fetch catre un endpoint de deconectare (ex: DELETE /api/auth/google/disconnect)
-    // care sa stearga google_refresh_token din baza de date
-    alert("Functionalitatea de deconectare urmeaza sa fie implementata in backend.");
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/google/disconnect`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "Eroare la deconectare.");
+      }
+      setIsGoogleConnected(false);
+      setSuccessMsg("Contul Google a fost deconectat.");
+    } catch (err: any) {
+      setError(err.message || "A apărut o eroare la deconectare.");
+    }
   };
 
   return (

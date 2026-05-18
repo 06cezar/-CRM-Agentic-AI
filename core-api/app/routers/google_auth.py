@@ -124,6 +124,22 @@ def google_callback(
             )
         raise HTTPException(status_code=400, detail=f"Eroare la procesarea callback-ului: {error_msg}")
     
+@router.delete("/disconnect")
+def google_disconnect(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    account = db.query(ConnectedAccount).filter(
+        ConnectedAccount.user_id == current_user.id,
+        ConnectedAccount.provider == "google",
+    ).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="No connected Google account found.")
+    db.delete(account)
+    db.commit()
+    return {"message": "Google account disconnected successfully."}
+
+
 @router.get("/get_connected_accounts")
 def get_connected_accounts(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     accounts = get_connected_accounts_by_user_id(current_user.id)
