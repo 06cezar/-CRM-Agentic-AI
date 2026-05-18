@@ -363,6 +363,69 @@ def research_lead(
     db.commit()
     db.refresh(lead)
 
+    # ── Înlănțuie CopilotAgent în background ─────────────────────────────────
+    import threading
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from app.models import CopilotResult
+
+    def _run_copilot(lead_id: int, lead_data: dict):
+        bg_db = SessionLocal()
+        try:
+            with httpx.Client(timeout=90.0) as c:
+                resp = c.post(f"{settings.ai_service_url}/agent/copilot", json=lead_data)
+                resp.raise_for_status()
+                copilot_result = resp.json()
+
+            now = datetime.now(timezone.utc)
+            stmt = pg_insert(CopilotResult).values(
+                lead_id=lead_id,
+                winning_argument=copilot_result["winning_argument"],
+                draft_message=copilot_result["draft_message"],
+                confidence=copilot_result["confidence"],
+                model_used=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+                generated_at=now,
+                lead_snapshot=lead_data,
+            ).on_conflict_do_update(
+                index_elements=["lead_id"],
+                set_={
+                    "winning_argument": copilot_result["winning_argument"],
+                    "draft_message": copilot_result["draft_message"],
+                    "confidence": copilot_result["confidence"],
+                    "model_used": os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+                    "generated_at": now,
+                    "lead_snapshot": lead_data,
+                },
+            )
+            bg_db.execute(stmt)
+            bg_db.add(AgentActivity(
+                lead_id=lead_id,
+                lead_name=lead_data["name"],
+                agent_name="CopilotAgent",
+                action_type="insight",
+                message=f"Generated co-pilot insights for {lead_data['name']}",
+                payload=copilot_result,
+                status="completed",
+            ))
+            bg_db.commit()
+        except Exception as e:
+            logger.warning(f"Copilot background failed for lead {lead_id}: {e}")
+            bg_db.rollback()
+        finally:
+            bg_db.close()
+
+    copilot_payload = {
+        "id": lead.id,
+        "name": lead.name,
+        "company": lead.company,
+        "role": lead.role,
+        "email": lead.email,
+        "intent_score": lead.intent_score,
+        "signals": lead.signals or [],
+        "deal_value_display": _format_deal_value(lead.deal_value, lead.currency),
+        "last_activity_description": lead.last_activity_description,
+    }
+    threading.Thread(target=_run_copilot, args=(lead.id, copilot_payload), daemon=True).start()
+
     return lead
 
 
@@ -388,9 +451,11 @@ def _map_row(row: dict) -> dict:
     """Mapează un rând CSV la câmpurile modelului Lead."""
     mapped: dict = {}
     for col, val in row.items():
+        if col is None:
+            continue
         key = _COL_MAP.get(col.lower().strip())
-        if key and val.strip():
-            mapped[key] = val.strip()
+        if key and val and str(val).strip():
+            mapped[key] = str(val).strip()
 
     # Combină first name + last name dacă nu există "name"
     if "name" not in mapped:

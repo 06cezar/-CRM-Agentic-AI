@@ -45,10 +45,42 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
     }
     setCopilot(null)
     setLoading(true)
-    api.getCopilot(Number(lead.id))
-      .then(setCopilot)
-      .catch(() => setCopilot(null))
-      .finally(() => setLoading(false))
+
+    let attempts = 0
+    const MAX_ATTEMPTS = 30   // 30 × 3s = 90s max
+    const INTERVAL_MS = 3000
+
+    const fetchCopilot = () => {
+      api.getCopilot(Number(lead.id))
+        .then((data) => {
+          if (data?.winning_argument) {
+            // Date reale disponibile — oprește polling-ul
+            setCopilot(data)
+            setLoading(false)
+          } else {
+            attempts++
+            if (attempts < MAX_ATTEMPTS) {
+              // Încă se generează în background — mai încearcă
+              setTimeout(fetchCopilot, INTERVAL_MS)
+            } else {
+              // Timeout — afișează ce e (poate fallback gol)
+              setCopilot(data)
+              setLoading(false)
+            }
+          }
+        })
+        .catch(() => {
+          setCopilot(null)
+          setLoading(false)
+        })
+    }
+
+    fetchCopilot()
+
+    return () => {
+      // Cleanup: oprește polling-ul dacă lead-ul se schimbă
+      attempts = MAX_ATTEMPTS
+    }
   }, [lead?.id])
 
   const handleRegenerate = async () => {
