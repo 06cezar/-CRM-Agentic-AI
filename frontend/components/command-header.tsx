@@ -80,24 +80,24 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4">
+    <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4 gap-2">
       {/* Logo and title */}
-      <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-        <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
-          <Cpu className="size-5 text-primary" />
+      <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0">
+        <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
+          <Cpu className="size-4 text-primary" />
         </div>
         <div className="hidden sm:block">
-          <h1 className="text-sm font-semibold text-foreground">
+          <h1 className="text-sm font-semibold text-foreground whitespace-nowrap">
             Agentic Command Center
           </h1>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground hidden xl:block">
             AI-powered sales intelligence
           </p>
         </div>
       </Link>
 
-      {/* Center stats */}
-      <div className="hidden md:flex items-center gap-6">
+      {/* Center stats — xl+ only */}
+      <div className="hidden xl:flex items-center gap-6">
         <div className="flex items-center gap-2">
           <div className="size-2 rounded-full bg-score-hot animate-pulse" />
           <span className="text-xs text-muted-foreground">
@@ -132,25 +132,25 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
       {/* Right actions */}
       <div className="flex items-center gap-2">
         <button
-          className="hidden sm:flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
+          className="flex items-center gap-1.5 h-8 px-3 text-xs font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
           onClick={() => setModalOpen(true)}
         >
           <Plus className="size-3.5" />
-          Add Lead
+          <span className="hidden sm:inline">Add Lead</span>
         </button>
         <button
           className="hidden sm:flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
           onClick={() => setImportOpen(true)}
         >
           <Upload className="size-3.5" />
-          Import CSV
+          <span className="hidden xl:inline">Import CSV</span>
         </button>
         <button
           className="hidden sm:flex items-center gap-1.5 h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
           onClick={() => setScraperOpen(true)}
         >
           <Linkedin className="size-3.5" />
-          Find Leads
+          <span className="hidden xl:inline">Find Leads</span>
         </button>
         <AddLeadModal
           open={modalOpen}
@@ -259,7 +259,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
             </>
           )}
         </div>
-        <div className="ml-2 h-6 w-px bg-border hidden sm:block" />
+        <div className="ml-2 h-6 w-px bg-border hidden xl:block" />
         <div className="relative">
           <button
             className="flex items-center gap-2 h-8 px-2 rounded-md hover:bg-accent transition-colors"
@@ -268,7 +268,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
             <div className="flex size-6 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
               {initials}
             </div>
-            <span className="hidden sm:block text-sm">{user?.full_name ?? "…"}</span>
+            <span className="hidden xl:block text-sm">{user?.full_name ?? "…"}</span>
             <ChevronDown className="size-3 text-muted-foreground" />
           </button>
 

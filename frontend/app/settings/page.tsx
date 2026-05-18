@@ -15,9 +15,10 @@ import {
   Plug,
   Unplug,
   Settings,
-  Eye,
-  EyeOff,
+  LogOut,
+  User,
 } from "lucide-react";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface ConnectedAccount {
@@ -32,6 +33,9 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 function SettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const [user, setUser] = useState<{ email: string; full_name: string; role: string } | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
@@ -66,7 +70,19 @@ function SettingsContent() {
     }
   };
 
-  useEffect(() => { fetchAccounts(); }, []);
+  useEffect(() => {
+    fetchAccounts();
+    api.me().then(setUser).catch(() => {});
+  }, []);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await api.logout();
+    } finally {
+      router.push("/login");
+    }
+  };
 
   const handleGoogleConnect = async () => {
     setConnectingGoogle(true);
@@ -140,7 +156,7 @@ function SettingsContent() {
     <div className="flex flex-col min-h-screen bg-background">
       <CommandHeader />
 
-      <main className="flex-1 p-6 md:p-8 max-w-3xl mx-auto w-full">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 max-w-3xl mx-auto w-full">
 
         {/* Page header */}
         <div className="mb-8 flex items-start justify-between">
@@ -191,39 +207,74 @@ function SettingsContent() {
           </div>
         )}
 
+        {/* Profile section */}
+        <div className="mb-4 rounded-lg border border-border bg-card px-4 sm:px-5 py-4">
+          <h2 className="text-sm font-semibold text-foreground mb-3">Profile</h2>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-sm">
+                {user?.full_name
+                  ? user.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+                  : <User className="size-4" />}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  {user?.full_name ?? "—"}
+                </p>
+                <p className="text-xs text-muted-foreground">{user?.email ?? "—"}</p>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+              onClick={handleSignOut}
+              disabled={signingOut}
+            >
+              {signingOut ? (
+                <RefreshCw className="size-3.5 animate-spin" />
+              ) : (
+                <LogOut className="size-3.5" />
+              )}
+              Sign out
+            </Button>
+          </div>
+        </div>
+
         {/* Integrations section */}
         <div className="rounded-lg border border-border bg-card">
           {/* Section header */}
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <div>
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 sm:px-5 py-4">
+            <div className="min-w-0">
               <h2 className="text-sm font-semibold text-foreground">Integrations</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
                 Connected accounts and sync preferences
               </p>
             </div>
             <Button
               variant="outline"
               size="sm"
-              className="gap-1.5"
+              className="gap-1.5 shrink-0"
               onClick={handleGoogleConnect}
               disabled={connectingGoogle}
             >
               {connectingGoogle ? (
                 <>
                   <RefreshCw className="size-3.5 animate-spin" />
-                  Connecting...
+                  <span className="hidden sm:inline">Connecting...</span>
                 </>
               ) : (
                 <>
                   <Plug className="size-3.5" />
-                  Connect Google
+                  <span className="hidden sm:inline">Connect Google</span>
+                  <span className="sm:hidden">Connect</span>
                 </>
               )}
             </Button>
           </div>
 
           {/* Account list */}
-          <div className="px-5 py-4">
+          <div className="px-4 sm:px-5 py-4">
             {loadingAccounts ? (
               <div className="space-y-3">
                 {[1, 2].map((i) => (
@@ -265,76 +316,78 @@ function SettingsContent() {
             ) : (
               <ul className="divide-y divide-border">
                 {accounts.map((account) => (
-                  <li key={account.id} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-                    {/* Avatar */}
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary font-bold text-sm">
-                      G
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {account.email}
-                      </p>
-                      <div className="mt-0.5 flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground capitalize">
-                          {account.provider}
-                        </span>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-[10px] h-4 px-1.5",
-                            account.is_watching
-                              ? "border-primary/40 text-primary"
-                              : "border-muted-foreground/30 text-muted-foreground"
-                          )}
-                        >
-                          {account.is_watching ? "Monitoring" : "Paused"}
-                        </Badge>
+                  <li key={account.id} className="py-4 first:pt-0 last:pb-0">
+                    <div className="flex items-center gap-3">
+                      {/* Avatar */}
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary font-bold text-sm">
+                        G
                       </div>
-                    </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {/* Watch toggle */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleWatch(account.id, account.is_watching)}
-                        disabled={togglingId === account.id}
-                        title={account.is_watching ? "Pause monitoring" : "Start monitoring"}
-                        className={cn(
-                          "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background",
-                          account.is_watching ? "bg-primary" : "bg-secondary",
-                          togglingId === account.id && "opacity-50 cursor-not-allowed"
-                        )}
-                        role="switch"
-                        aria-checked={account.is_watching}
-                      >
-                        <span className="sr-only">Toggle monitoring</span>
-                        <span
-                          aria-hidden="true"
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {account.email}
+                        </p>
+                        <div className="mt-0.5 flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground capitalize">
+                            {account.provider}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-[10px] h-4 px-1.5",
+                              account.is_watching
+                                ? "border-primary/40 text-primary"
+                                : "border-muted-foreground/30 text-muted-foreground"
+                            )}
+                          >
+                            {account.is_watching ? "Monitoring" : "Paused"}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Watch toggle */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleWatch(account.id, account.is_watching)}
+                          disabled={togglingId === account.id}
+                          title={account.is_watching ? "Pause monitoring" : "Start monitoring"}
                           className={cn(
-                            "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ease-in-out",
-                            account.is_watching ? "translate-x-4" : "translate-x-0"
+                            "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background",
+                            account.is_watching ? "bg-primary" : "bg-secondary",
+                            togglingId === account.id && "opacity-50 cursor-not-allowed"
                           )}
-                        />
-                      </button>
+                          role="switch"
+                          aria-checked={account.is_watching}
+                        >
+                          <span className="sr-only">Toggle monitoring</span>
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ease-in-out",
+                              account.is_watching ? "translate-x-4" : "translate-x-0"
+                            )}
+                          />
+                        </button>
 
-                      {/* Disconnect */}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => handleDisconnect(account.id)}
-                        disabled={disconnectingId === account.id}
-                      >
-                        {disconnectingId === account.id ? (
-                          <RefreshCw className="size-3.5 animate-spin" />
-                        ) : (
-                          <Unplug className="size-3.5" />
-                        )}
-                        Disconnect
-                      </Button>
+                        {/* Disconnect — icon only on mobile, text on sm+ */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 px-2 sm:px-3"
+                          onClick={() => handleDisconnect(account.id)}
+                          disabled={disconnectingId === account.id}
+                        >
+                          {disconnectingId === account.id ? (
+                            <RefreshCw className="size-3.5 animate-spin" />
+                          ) : (
+                            <Unplug className="size-3.5" />
+                          )}
+                          <span className="hidden sm:inline">Disconnect</span>
+                        </Button>
+                      </div>
                     </div>
                   </li>
                 ))}
@@ -344,7 +397,7 @@ function SettingsContent() {
         </div>
 
         {/* About section */}
-        <div className="mt-4 rounded-lg border border-border bg-card px-5 py-4">
+        <div className="mt-4 rounded-lg border border-border bg-card px-4 sm:px-5 py-4">
           <h2 className="text-sm font-semibold text-foreground mb-3">About</h2>
           <div className="space-y-2 text-xs text-muted-foreground">
             <div className="flex items-center justify-between">

@@ -151,7 +151,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
   }
 
   return (
-    <div className="flex h-full flex-col animate-in slide-in-from-right-4">
+    <div className="flex h-full min-h-0 flex-col animate-in slide-in-from-right-4">
       {/* Header */}
       <div className="border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
@@ -175,7 +175,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-4 space-y-4">
           {/* Lead info card */}
           <div className="rounded-lg border border-border bg-secondary/30 p-4">
