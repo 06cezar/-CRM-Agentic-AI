@@ -80,7 +80,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
   }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4">
+    <header className="flex h-14 items-center justify-between border-b glass-panel px-4">
       {/* Logo and title */}
       <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
         <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
@@ -183,7 +183,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
           {bellOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setBellOpen(false)} />
-              <div className="absolute right-0 top-10 z-20 w-72 rounded-lg border border-border bg-card shadow-lg py-1">
+              <div className="absolute right-0 top-10 z-20 w-72 rounded-lg glass-card shadow-lg py-1">
                 <div className="px-3 py-2 border-b border-border">
                   <p className="text-xs font-semibold text-foreground">Recent AI Activity</p>
                 </div>
@@ -213,7 +213,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
           {settingsOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setSettingsOpen(false)} />
-              <div className="absolute right-0 top-10 z-20 w-48 rounded-lg border border-border bg-card shadow-lg py-1">
+              <div className="absolute right-0 top-10 z-20 w-48 rounded-lg glass-card shadow-lg py-1">
                 <div className="px-3 py-2 border-b border-border">
                   <p className="text-xs font-semibold text-foreground">Settings</p>
                 </div>
@@ -275,7 +275,7 @@ export function CommandHeader({ onLeadCreated }: CommandHeaderProps) {
           {open && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-              <div className="absolute right-0 top-10 z-20 w-44 rounded-lg border border-border bg-card shadow-lg py-1">
+              <div className="absolute right-0 top-10 z-20 w-44 rounded-lg glass-card shadow-lg py-1">
                 {user && (
                   <>
                     <div className="px-3 py-2 border-b border-border">

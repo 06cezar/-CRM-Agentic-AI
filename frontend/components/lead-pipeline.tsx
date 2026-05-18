@@ -317,8 +317,8 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                   className={cn(
                     "w-full rounded-lg p-3 text-left transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50",
                     isSelected
-                      ? "bg-primary/10 border border-primary/30"
-                      : "hover:bg-accent/50 border border-transparent"
+                      ? "glass-card-selected"
+                      : "glass-card glass-card-hover"
                   )}
                 >
                   <div className="flex items-start gap-3">

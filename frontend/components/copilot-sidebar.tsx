@@ -177,7 +177,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
           {/* Lead info card */}
-          <div className="rounded-lg border border-border bg-secondary/30 p-4">
+          <div className="rounded-lg glass-card p-4">
             <div className="flex items-start gap-3">
               <div className="flex size-12 items-center justify-center rounded-full bg-primary/20 text-primary font-semibold text-lg">
                 {lead.name.split(" ").map((n) => n[0]).join("")}
