@@ -115,6 +115,7 @@ def _build_prompt(lead: dict) -> str:
         f"- Company: {_val('company')}\n"
         f"- Role: {_val('role')}\n"
         f"- Deal value: {_val('deal_value_display')}\n"
+        f"- Intent score: {score}/100\n"
         f"- Engagement tier: {tier}\n"
         f"- Signals: {signals_text}\n"
         f"- Last activity: {_val('last_activity_description', 'unknown')}\n\n"

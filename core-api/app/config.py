@@ -1,21 +1,22 @@
 from pathlib import Path
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    
-    
-    database_url: str
-    frontend_url: str
-    google_credentials_json: str
-    backend_url: str
-    ai_service_url: str
-    mail_username: str
-    mail_password: str
-    mail_from: str
-    mail_port: int
-    mail_server: str
-    mail_from_name: str
-    secret_key: str
+
+
+    database_url: str = "sqlite:///./test.db"
+    frontend_url: str = "http://localhost:3000"
+    google_credentials_json: str = "{}"
+    backend_url: str = "http://localhost:8000"
+    ai_service_url: str = "http://localhost:8001"
+    mail_username: Optional[str] = None
+    mail_password: Optional[str] = None
+    mail_from: Optional[str] = None
+    mail_port: Optional[int] = None
+    mail_server: Optional[str] = None
+    mail_from_name: Optional[str] = None
+    secret_key: str = "dev-secret-key-change-in-production"
     
     # MinIO Settings
     minio_endpoint: str = "minio:9000"  # Default to service name in Docker network
