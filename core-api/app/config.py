@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -28,6 +29,6 @@ class Settings(BaseSettings):
     email_classifier_model: str = "llama3.2:3b"
     
     # Configurare pentru a citi si din fisier daca variabilele de mediu lipsesc
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
 settings = Settings()
