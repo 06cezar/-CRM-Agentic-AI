@@ -105,7 +105,7 @@ def _run_research_queue(lead_ids: list[int]) -> None:
     for lead_id in lead_ids:
         try:
             with _ollama_lock:  # cedează lock-ul după fiecare lead
-                _run_research_in_background(lead_id)
+                _run_research_locked(lead_id)
         except Exception as e:
             logger.warning(f"Queue: research failed for lead {lead_id}: {e}")
             continue
@@ -115,7 +115,14 @@ def _run_research_in_background(lead_id: int) -> None:
     Apelează ai-service și persistă rezultatele pentru un lead.
     Rulează în background după crearea unui lead — nu blochează răspunsul.
     Folosește propria sesiune DB (nu cea din request, care e deja închisă).
+    Achiziționează _ollama_lock pentru a nu concura cu alți agenți.
     """
+    with _ollama_lock:
+        _run_research_locked(lead_id)
+
+
+def _run_research_locked(lead_id: int) -> None:
+    """Corpul efectiv al research-ului — trebuie apelat cu _ollama_lock deținut."""
     db = SessionLocal()
     try:
         lead = db.query(Lead).filter(Lead.id == lead_id).first()
@@ -356,7 +363,13 @@ def research_lead(
         "last_activity_description": lead.last_activity_description,
     }
 
-    acquired = _ollama_lock.acquire(timeout=5)  # așteaptă max 5s să intre
+    # Încearcă să obțină lock-ul în max 30s; dacă AI-ul e ocupat, returnează 503
+    acquired = _ollama_lock.acquire(timeout=30)
+    if not acquired:
+        raise HTTPException(
+            status_code=503,
+            detail="AI agent is busy processing other leads. Try again in a moment.",
+        )
     try:
         with httpx.Client(timeout=120.0) as client:
             response = client.post(f"{settings.ai_service_url}/agent/research", json=payload)
@@ -365,8 +378,7 @@ def research_lead(
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"AI service unavailable: {str(e)}")
     finally:
-        if acquired:
-            _ollama_lock.release()
+        _ollama_lock.release()
 
     # ── Persistă rezultatele în leads ────────────────────────────────────────
     lead.intent_score = result["intent_score"]
