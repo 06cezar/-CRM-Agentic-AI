@@ -6,7 +6,7 @@ from app.models import ConnectedAccount, User
 from app.google_auth import get_connected_accounts_by_user_id, get_google_auth_url, SCOPES
 from app.auth import get_current_user
 from app.config import settings
-from app.gmail_watch import process_gmail_updates
+from app.gmail_watch import process_gmail_updates, stop_gmail_watch
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, BackgroundTasks
 from googleapiclient.discovery import build
 import base64
@@ -144,6 +144,37 @@ def google_disconnect(
 def get_connected_accounts(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     accounts = get_connected_accounts_by_user_id(current_user.id)
     return [{"id": acc.id, "email": acc.email, "provider": acc.provider, "is_watching": acc.is_watching} for acc in accounts]
+
+@router.delete("/disconnect/{account_id}")
+def disconnect_account(
+    account_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Elimină un cont conectat. 
+    1. Oprește watch-ul în Google Cloud (Pub/Sub).
+    2. Șterge înregistrarea din baza de date.
+    """
+    account = db.query(ConnectedAccount).filter(
+        ConnectedAccount.id == account_id,
+        ConnectedAccount.user_id == current_user.id
+    ).first()
+
+    if not account:
+        raise HTTPException(status_code=404, detail="Contul nu a fost găsit.")
+
+    # Încercăm să oprim watch-ul înainte de ștergere
+    # Chiar dacă eșuează (ex: token expirat), continuăm cu ștergerea locală
+    stop_gmail_watch(account)
+
+    try:
+        db.delete(account)
+        db.commit()
+        return {"status": "success", "message": f"Contul {account.email} a fost deconectat."}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Eroare la ștergerea contului: {str(e)}")
 
 @router.post("/webhook")
 async def gmail_webhook(payload: PubSubPayload, background_tasks: BackgroundTasks):

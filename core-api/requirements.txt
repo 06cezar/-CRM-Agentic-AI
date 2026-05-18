@@ -16,3 +16,4 @@ google-auth-httplib2
 fastapi-mail
 boto3
 botocore
+structlog
