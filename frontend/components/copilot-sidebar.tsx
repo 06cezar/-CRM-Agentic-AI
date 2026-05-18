@@ -132,7 +132,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
   if (!lead) {
     return (
       <div className="flex h-full flex-col items-center justify-center p-6 text-center">
-        <div className="flex size-16 items-center justify-center rounded-2xl bg-secondary mb-4">
+        <div className="flex size-16 items-center justify-center rounded-2xl glass-card mb-4">
           <Wand2 className="size-8 text-muted-foreground" />
         </div>
         <h3 className="text-lg font-semibold text-foreground">
@@ -229,7 +229,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
           </div>
 
           {/* Tabs */}
-          <div className="flex rounded-lg bg-secondary/50 p-1 gap-1">
+          <div className="flex rounded-lg glass-card p-1 gap-1">
             <button
               onClick={() => setActiveTab("argument")}
               className={cn(
@@ -260,7 +260,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
           {activeTab === "argument" ? (
             <div className="space-y-4">
               {/* Winning argument */}
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+              <div className="rounded-lg border border-primary/25 glass-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Target className="size-4 text-primary" />
@@ -319,7 +319,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
               </div>
 
               {/* Deal value */}
-              <div className="rounded-lg bg-secondary/50 p-4">
+              <div className="rounded-lg glass-card p-4">
                 <div className="text-xs text-muted-foreground mb-1">
                   Estimated Deal Value
                 </div>
@@ -329,7 +329,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
           ) : (
             <div className="space-y-4">
               {/* Draft message */}
-              <div className="rounded-lg border border-border bg-background p-4">
+              <div className="rounded-lg glass-card p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Mail className="size-4 text-primary" />
@@ -353,7 +353,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
                     </Button>
                   </div>
                 </div>
-                <div className="text-sm text-foreground whitespace-pre-line leading-relaxed bg-secondary/30 rounded-md p-3 font-mono text-xs min-h-[80px]">
+                <div className="text-sm text-foreground whitespace-pre-line leading-relaxed glass-card rounded-md p-3 font-mono text-xs min-h-[80px]">
                   {loading ? (
                     <div className="space-y-2">
                       <Skeleton className="h-3 w-full" />

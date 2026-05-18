@@ -90,8 +90,8 @@ export function ImportCsvModal({ open, onClose, onSuccess }: ImportCsvModalProps
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="glass-panel border rounded-lg shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="text-lg font-semibold">Import CSV</h2>
           <button onClick={handleClose} className="p-1 hover:bg-accent rounded-md transition-colors">

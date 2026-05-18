@@ -153,128 +153,83 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Liquid Glass — Aurora background + glass utilities
+   Liquid Glass — Aurora background + glass utilities (perf-optimized v2)
    ──────────────────────────────────────────────────────────────────────────── */
 
-/* Animated aurora background — colored blobs that drift slowly behind glass panels */
+/* Static aurora — three colored radial gradients composited into a single
+   layer. No filter:blur, no animation → paints once and stays in the GPU
+   compositor. Was: 3 separate animated blurred elements (very expensive). */
 .aurora-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
-  overflow: hidden;
   pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 55% 50% at 15% 20%,
+      oklch(0.7 0.2 160 / 0.25) 0%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 50% 50% at 85% 80%,
+      oklch(0.6 0.22 290 / 0.22) 0%,
+      transparent 65%
+    ),
+    radial-gradient(
+      ellipse 45% 40% at 50% 50%,
+      oklch(0.75 0.15 85 / 0.14) 0%,
+      transparent 70%
+    );
 }
 
-.aurora-bg::before,
-.aurora-bg::after {
-  content: "";
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.55;
-  will-change: transform;
-}
-
-.aurora-bg::before {
-  width: 60vmax;
-  height: 60vmax;
-  top: -20vmax;
-  left: -10vmax;
-  background: radial-gradient(
-    circle,
-    oklch(0.7 0.2 160 / 0.45) 0%,
-    oklch(0.6 0.18 200 / 0.25) 40%,
-    transparent 70%
-  );
-  animation: aurora-drift-1 24s ease-in-out infinite alternate;
-}
-
-.aurora-bg::after {
-  width: 55vmax;
-  height: 55vmax;
-  bottom: -20vmax;
-  right: -10vmax;
-  background: radial-gradient(
-    circle,
-    oklch(0.6 0.22 290 / 0.4) 0%,
-    oklch(0.55 0.2 25 / 0.22) 40%,
-    transparent 70%
-  );
-  animation: aurora-drift-2 28s ease-in-out infinite alternate;
-}
-
-/* Third blob — added via separate element for variety */
+/* Disable the old animated blob — replaced by static gradients above */
 .aurora-blob {
-  position: absolute;
-  width: 45vmax;
-  height: 45vmax;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.35;
-  top: 40%;
-  left: 35%;
-  background: radial-gradient(
-    circle,
-    oklch(0.75 0.15 85 / 0.4) 0%,
-    oklch(0.7 0.18 160 / 0.2) 40%,
-    transparent 70%
-  );
-  animation: aurora-drift-3 32s ease-in-out infinite alternate;
-  will-change: transform;
+  display: none;
 }
 
-@keyframes aurora-drift-1 {
-  0%   { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(20vmin, 25vmin) scale(1.15); }
-}
-
-@keyframes aurora-drift-2 {
-  0%   { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(-22vmin, -18vmin) scale(1.1); }
-}
-
-@keyframes aurora-drift-3 {
-  0%   { transform: translate(-10vmin, 0) scale(1); }
-  100% { transform: translate(15vmin, -15vmin) scale(1.2); }
-}
-
-/* Glass panel — large surfaces (header, sidebars) */
+/* Glass panel — large surfaces (header, sidebars).
+   Cuts vs v1:
+   - blur(24px) → blur(10px) (perceptually similar, much cheaper)
+   - removed saturate(160%) (expensive on backdrop)
+   NOTE: do NOT use `contain: paint` or `transform: translateZ(0)` here —
+   both clip/break absolute-positioned dropdowns (bell, settings, user menu)
+   that hang below the header. Modern browsers GPU-accelerate backdrop-filter
+   automatically. */
 .glass-panel {
-  background: oklch(0.12 0.005 260 / 0.55);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  background: oklch(0.12 0.005 260 / 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-color: oklch(1 0 0 / 0.08);
   box-shadow:
     inset 0 1px 0 0 oklch(1 0 0 / 0.06),
-    0 8px 32px 0 oklch(0 0 0 / 0.25);
+    0 8px 32px 0 oklch(0 0 0 / 0.2);
 }
 
-/* Glass card — smaller elements (cards, dropdowns, modals) */
+/* Glass card — NO backdrop-filter. With ~30+ lead cards each running
+   backdrop-filter, the cost was multiplicative. Plain semi-transparent
+   bg + border still reads as "glass" since the panel behind already
+   is blurred. */
 .glass-card {
-  background: oklch(0.14 0.005 260 / 0.6);
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  background: oklch(0.14 0.005 260 / 0.7);
   border: 1px solid oklch(1 0 0 / 0.08);
   box-shadow:
     inset 0 1px 0 0 oklch(1 0 0 / 0.05),
-    0 4px 16px 0 oklch(0 0 0 / 0.2);
+    0 2px 8px 0 oklch(0 0 0 / 0.15);
 }
 
-/* Glass card on hover — slight lift + brighter inner edge */
+/* Hover — only animate background + border (cheap).
+   No transition on box-shadow (was causing extra repaints). */
 .glass-card-hover {
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 .glass-card-hover:hover {
-  background: oklch(0.18 0.01 260 / 0.7);
+  background: oklch(0.18 0.01 260 / 0.8);
   border-color: oklch(1 0 0 / 0.14);
-  box-shadow:
-    inset 0 1px 0 0 oklch(1 0 0 / 0.1),
-    0 8px 24px 0 oklch(0 0 0 / 0.3);
 }
 
-/* Glass card — selected state */
+/* Selected state — kept the green glow, no backdrop-filter */
 .glass-card-selected {
-  background: oklch(0.7 0.18 160 / 0.12);
+  background: oklch(0.7 0.18 160 / 0.14);
   border: 1px solid oklch(0.7 0.18 160 / 0.4);
   box-shadow:
     inset 0 1px 0 0 oklch(1 0 0 / 0.08),
