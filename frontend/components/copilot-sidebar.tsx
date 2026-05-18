@@ -24,6 +24,7 @@ import {
   X,
   ChevronRight,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react"
 
 interface CopilotSidebarProps {
@@ -105,6 +106,13 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
       setCopiedEmail(true)
       setTimeout(() => setCopiedEmail(false), 2000)
     }
+  }
+
+  const handleEditInGmail = () => {
+    if (!lead || !copilot?.draft_message) return
+    const subject = `Following up — ${lead.company}`
+    const url = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(copilot.draft_message)}`
+    window.open(url, "_blank")
   }
 
   const handleSendEmail = async () => {
@@ -365,27 +373,38 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
               </div>
 
               {/* Action buttons */}
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={handleCopyEmail}
+                    disabled={!copilot?.draft_message}
+                  >
+                    {copiedEmail ? (
+                      <>
+                        <CheckCircle2 className="size-4 text-primary" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-4" />
+                        Copy
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={handleEditInGmail}
+                    disabled={!copilot?.draft_message}
+                  >
+                    <ExternalLink className="size-4" />
+                    Edit in Gmail
+                  </Button>
+                </div>
                 <Button
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  onClick={handleCopyEmail}
-                  disabled={!copilot?.draft_message}
-                >
-                  {copiedEmail ? (
-                    <>
-                      <CheckCircle2 className="size-4 text-primary" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="size-4" />
-                      Copy
-                    </>
-                  )}
-                </Button>
-                <Button
-                  className="flex-1 gap-2"
+                  className="w-full gap-2"
                   disabled={!copilot?.draft_message || sending}
                   onClick={handleSendEmail}
                 >

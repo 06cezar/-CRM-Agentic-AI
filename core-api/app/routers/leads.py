@@ -8,12 +8,19 @@ import csv
 import io
 import os
 import logging
+import threading
 import httpx
 from app.database import get_db, SessionLocal
 from app.models import Lead, AgentActivity, User
 from app.auth import get_current_user
 from app.config import settings
+
 logger = logging.getLogger(__name__)
+
+# Lock global Ollama — garantează că un singur research rulează la un moment dat.
+# Coada îl ia lead cu lead; research-ul manual îl ia direct, cu prioritate față de
+# următorul item din coadă (dar nu întrerupe un research deja în curs).
+_ollama_lock = threading.Lock()
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -89,6 +96,19 @@ class LeadResponse(BaseModel):
 
 
 # ── Background research ───────────────────────────────────────────────────────
+
+def _run_research_queue(lead_ids: list[int]) -> None:
+    """
+    Procesează o listă de lead-uri secvențial: research → copilot pentru fiecare.
+    Între leaduri, cedează lock-ul — research-ul manual poate intra cu prioritate.
+    """
+    for lead_id in lead_ids:
+        try:
+            with _ollama_lock:  # cedează lock-ul după fiecare lead
+                _run_research_in_background(lead_id)
+        except Exception as e:
+            logger.warning(f"Queue: research failed for lead {lead_id}: {e}")
+            continue
 
 def _run_research_in_background(lead_id: int) -> None:
     """
@@ -325,7 +345,7 @@ def research_lead(
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
-    # ── Apelează ai-service ───────────────────────────────────────────────────
+    # ── Apelează ai-service (cu prioritate față de coada de import) ──────────
     payload = {
         "id": lead.id,
         "name": lead.name,
@@ -336,6 +356,7 @@ def research_lead(
         "last_activity_description": lead.last_activity_description,
     }
 
+    acquired = _ollama_lock.acquire(timeout=5)  # așteaptă max 5s să intre
     try:
         with httpx.Client(timeout=60.0) as client:
             response = client.post(f"{settings.ai_service_url}/agent/research", json=payload)
@@ -343,6 +364,9 @@ def research_lead(
             result = response.json()
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"AI service unavailable: {str(e)}")
+    finally:
+        if acquired:
+            _ollama_lock.release()
 
     # ── Persistă rezultatele în leads ────────────────────────────────────────
     lead.intent_score = result["intent_score"]
@@ -471,7 +495,6 @@ def _map_row(row: dict) -> dict:
 @router.post("/import")
 async def import_leads_csv(
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -492,6 +515,7 @@ async def import_leads_csv(
     reader = csv.DictReader(io.StringIO(text))
 
     imported, skipped, errors = 0, 0, []
+    queued_lead_ids: list[int] = []
 
     for i, row in enumerate(reader, start=2):  # start=2 pt că linia 1 e header
         mapped = _map_row(row)
@@ -526,13 +550,24 @@ async def import_leads_csv(
         db.add(lead)
         db.flush()  # obținem lead.id fără commit
 
-        background_tasks.add_task(_run_research_in_background, lead.id)
+        queued_lead_ids.append(lead.id)
         imported += 1
 
     db.commit()
 
+    # Un singur background task care procesează toate leadurile secvențial
+    # research → copilot per lead, unul câte unul — Ollama nu e bombardat
+    if queued_lead_ids:
+        import threading
+        threading.Thread(
+            target=_run_research_queue,
+            args=(queued_lead_ids,),
+            daemon=True,
+        ).start()
+
     return {
         "imported": imported,
         "skipped": skipped,
-        "errors": errors[:10],  # max 10 erori în răspuns
+        "errors": errors[:10],
+        "queued_for_research": len(queued_lead_ids),
     }
