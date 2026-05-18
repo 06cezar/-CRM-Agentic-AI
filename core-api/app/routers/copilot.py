@@ -218,8 +218,14 @@ def send_copilot_email(
             detail="No connected Google account. Connect Gmail in Settings.",
         )
 
+    service = get_gmail_service(account)
+    if not service:
+        raise HTTPException(
+            status_code=400,
+            detail="Gmail connection failed. Your Google account token has expired — please reconnect in Settings.",
+        )
+
     try:
-        service = get_gmail_service(account)
         message = MIMEText(cached.draft_message)
         message["to"] = lead.email
         message["subject"] = f"Following up — {lead.company}"
