@@ -59,6 +59,26 @@ export interface CopilotAPI {
   is_cached: boolean
 }
 
+export interface ScrapeJobAPI {
+  id: number
+  status: "pending" | "running" | "completed" | "failed"
+  query: string
+  pages_requested: number
+  scraped_count: number
+  leads_created: number
+  error_message: string | null
+}
+
+export interface SearchQuerySuggestion {
+  query: string
+  expected_title: string
+  reasoning: string
+}
+
+interface SearchQueryResponse {
+  queries: SearchQuerySuggestion[]
+}
+
 // ── API client ────────────────────────────────────────────────────────────────
 
 export const api = {
@@ -103,6 +123,9 @@ export const api = {
 
   regenerateCopilot: (leadId: number) =>
     request<CopilotAPI>(`/leads/${leadId}/copilot/regenerate`, { method: "POST" }),
+
+  sendCopilotEmail: (leadId: number) =>
+    request<{ message: string; to: string }>(`/leads/${leadId}/copilot/send-email`, { method: "POST" }),
   // ── LinkedIn Scraper ───────────────────────────────────────────────────────
   uploadLinkedInCookies: (cookiesJson: string) =>
     request<{ status: string }>("/scraper/credentials", {

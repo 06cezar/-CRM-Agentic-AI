@@ -60,6 +60,7 @@ coverage.xml
 # TypeScript build cache
 frontend/tsconfig.tsbuildinfo
 
+
 core-api/secrets/
 core-api/.env
 core-api/secrets

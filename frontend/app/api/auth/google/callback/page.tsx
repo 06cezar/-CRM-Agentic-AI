@@ -36,9 +36,13 @@ function GoogleCallbackContent() {
         })
         .then((data) => {
           console.log("Succes! Logat cu Google:", data);
-          router.push("/settings");
+          router.push("/settings?connected=true");
         })
-        .catch((err) => console.error("Eroare:", err));
+        .catch((err) => {
+          console.error("Eroare:", err);
+          const msg = err instanceof Error ? encodeURIComponent(err.message) : "google_error";
+          router.push(`/settings?error=${msg}`);
+        });
     }
   }, [searchParams, router]);
 
