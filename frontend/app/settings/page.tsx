@@ -1,35 +1,41 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import ConnectedAccounts from "@/components/get-connected-accounts";
 import { CommandHeader } from "@/components/command-header";
+import { X } from "lucide-react";
 
-export default function SettingsPage() {
+function SettingsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // State-uri noi pentru verificarea conexiunii
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
   const [isGoogleConnected, setIsGoogleConnected] = useState(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-  // Verificam daca userul este deja conectat cand se incarca pagina
+  // Citește rezultatul callback-ului OAuth din URL
   useEffect(() => {
-    const fetchUserStatus = async () => {
-      try {
-        // Apeleaza ruta ta care returneaza datele userului curent (ex: /api/users/me)
-        const response = await fetch(`${apiUrl}/auth/me`, {
-          method: "GET",
-          credentials: "include" // Ca sa trimita cookie-ul de sesiune
-        });
+    const errorParam = searchParams.get("error");
+    const connectedParam = searchParams.get("connected");
+    if (errorParam) setError(decodeURIComponent(errorParam));
+    if (connectedParam === "true") setSuccessMsg("Contul Google a fost conectat cu succes!");
+  }, [searchParams]);
 
+  // Verifică dacă există un ConnectedAccount de tip google
+  useEffect(() => {
+    const checkConnected = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/api/auth/google/get_connected_accounts`, {
+          credentials: "include",
+        });
         if (response.ok) {
-          const userData = await response.json();
-          // Verificam daca backend-ul ne spune ca are token-ul (adapteaza cheia daca o trimiti altfel din FastAPI)
-          if (userData.google_refresh_token) {
-            setIsGoogleConnected(true);
-          }
+          const accounts = await response.json();
+          setIsGoogleConnected(accounts.length > 0);
         }
       } catch (err) {
         console.error("Eroare la preluarea statusului Google:", err);
@@ -37,8 +43,7 @@ export default function SettingsPage() {
         setIsCheckingStatus(false);
       }
     };
-
-    fetchUserStatus();
+    checkConnected();
   }, [apiUrl]);
 
   const handleGoogleConnect = async () => {
@@ -70,20 +75,40 @@ export default function SettingsPage() {
   };
 
   const handleDisconnect = async () => {
-    // Aici poti face un fetch catre un endpoint de deconectare (ex: DELETE /api/auth/google/disconnect)
-    // care sa stearga google_refresh_token din baza de date
-    alert("Functionalitatea de deconectare urmeaza sa fie implementata in backend.");
+    try {
+      const res = await fetch(`${apiUrl}/api/auth/google/disconnect`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || "Eroare la deconectare.");
+      }
+      setIsGoogleConnected(false);
+      setSuccessMsg("Contul Google a fost deconectat.");
+    } catch (err: any) {
+      setError(err.message || "A apărut o eroare la deconectare.");
+    }
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <CommandHeader />
       <main className="flex-1 p-8 max-w-4xl mx-auto w-full">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Setari Platforma</h1>
-          <p className="text-gray-600">
-            Gestioneaza integrarile si preferintele contului tau de freelancer.
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Setari Platforma</h1>
+            <p className="text-gray-600">
+              Gestioneaza integrarile si preferintele contului tau de freelancer.
+            </p>
+          </div>
+          <button
+            onClick={() => router.push("/")}
+            className="p-2 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Închide setările"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -140,6 +165,11 @@ export default function SettingsPage() {
             )}
           </div>
             <ConnectedAccounts />
+          {successMsg && (
+            <div className="mt-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-md text-sm">
+              {successMsg}
+            </div>
+          )}
           {error && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-md text-sm">
               {error}
@@ -148,5 +178,13 @@ export default function SettingsPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center">Se incarca...</div>}>
+      <SettingsContent />
+    </Suspense>
   );
 }

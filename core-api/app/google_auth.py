@@ -24,8 +24,7 @@ def get_google_auth_url():
     
     auth_url, state = flow.authorization_url(
         access_type='offline',
-        include_granted_scopes='true',
-        prompt='consent' 
+        prompt='consent'
     )
     
     return auth_url, flow.code_verifier

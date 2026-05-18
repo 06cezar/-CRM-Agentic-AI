@@ -115,7 +115,7 @@ services:
 
   ngrok:
     image: ngrok/ngrok:latest
-    restart: always
+    restart: no
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
     command:
