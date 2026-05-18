@@ -1,15 +1,17 @@
+import random
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from app.database import get_db, SessionLocal
 from app.models import Email
 from app.services.s3_service import save_email_to_s3
 from app.services.ai_classifier import classify_incoming_email
+from app.services.eval_judge import run_llm_judge
 from pydantic import BaseModel
 from typing import Optional, Any, Dict
-import logging
+import structlog
 
 router = APIRouter(prefix="/emails", tags=["Emails"])
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 class EmailWebhookPayload(BaseModel):
     user_id: int
@@ -19,7 +21,7 @@ class EmailWebhookPayload(BaseModel):
     body: str
     raw_payload: Dict[str, Any]
 
-async def handle_email_processing(payload: EmailWebhookPayload):
+async def handle_email_processing(payload: EmailWebhookPayload, background_tasks: BackgroundTasks):
     """
     Background task to handle AI classification and storage.
     """
@@ -29,8 +31,17 @@ async def handle_email_processing(payload: EmailWebhookPayload):
         # 1. Classify email using Ollama
         classification = await classify_incoming_email(payload.subject, payload.body)
         
+        # 2. Trigger LLM-as-a-Judge for 5% of requests to monitor cognitive degradation
+        if random.random() < 0.05:
+            background_tasks.add_task(
+                run_llm_judge,
+                original_email=f"Subject: {payload.subject}\nBody: {payload.body}",
+                production_ai_result=classification.dict(),
+                lead_id=payload.lead_id
+            )
+
         if not classification.is_worth_saving:
-            logger.info(f"Email {payload.email_id} rejected by AI. Reason: {classification.reasoning}")
+            logger.info("email_rejected", email_id=payload.email_id, reasoning=classification.reasoning)
             return
 
         # 2. Save to S3 (MinIO)
@@ -76,7 +87,7 @@ async def process_incoming_email_webhook(
     Receives raw email payload and acknowledges receipt immediately.
     Processing (AI + S3) happens in the background.
     """
-    background_tasks.add_task(handle_email_processing, payload)
+    background_tasks.add_task(handle_email_processing, payload, background_tasks)
     
     return {
         "status": "accepted",

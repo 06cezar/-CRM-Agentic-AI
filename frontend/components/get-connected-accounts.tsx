@@ -83,11 +83,29 @@ export default function SettingsPage() {
       )
     );
   }
-};
+  };
+
+  const disconnectAccount = async (accountId: number) => {
+  if (!confirm("Sigur vrei sa deconectezi acest cont? Monitorizarea se va opri definitiv.")) return;
+
+  try {
+    const res = await fetch(`http://localhost:8000/api/auth/google/disconnect/${accountId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (res.ok) {
+      setAccounts((prev) => prev.filter((acc) => acc.id !== accountId));
+    } else {
+      throw new Error("Eroare la deconectare");
+    }
+  } catch (error) {
+    console.error("Eroare la deconectarea contului:", error);
+  }
+  };
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-8">
-      <div>
+  <div className="max-w-3xl mx-auto p-6 space-y-8">      <div>
         <h1 className="text-2xl font-bold text-gray-900">Setari Cont</h1>
         <p className="text-gray-500 mt-1">Gestioneaza conturile conectate si preferintele de sincronizare.</p>
       </div>
@@ -145,6 +163,13 @@ export default function SettingsPage() {
                           account.is_watching ? "translate-x-5" : "translate-x-0"
                         } pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
                       />
+                    </button>
+
+                    <button
+                      onClick={() => disconnectAccount(account.id)}
+                      className="text-xs text-red-600 hover:text-red-800 font-medium ml-2"
+                    >
+                      Deconectează
                     </button>
                   </div>
                 </li>

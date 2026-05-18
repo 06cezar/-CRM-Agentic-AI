@@ -14,6 +14,10 @@ def update_gmail_watch_state(account: ConnectedAccount, db: Session, activate: b
     if not service:
         return None
 
+    if not activate:
+        stop_gmail_watch(account)
+        return account.last_history_id
+
     # Topic-ul tău din Google Cloud (folosește formatul complet)
     topic_name = "projects/emailspamdetector-490413/topics/gmail-trigger"
     request = {
@@ -26,6 +30,21 @@ def update_gmail_watch_state(account: ConnectedAccount, db: Session, activate: b
 
     # Salvăm historyId inițial pentru a avea un punct de referință
     return watch_response.get('historyId')
+
+def stop_gmail_watch(account: ConnectedAccount):
+    """
+    Stops receiving notifications for the given Gmail account.
+    This tells Google Cloud Pub/Sub to stop sending triggers.
+    """
+    service = get_gmail_service(account)
+    if not service:
+        return False
+    try:
+        service.users().stop(userId='me').execute()
+        return True
+    except Exception as e:
+        print(f"Eroare la oprirea watch-ului Gmail pentru {account.email}: {e}")
+        return False
 
 def process_gmail_updates(account_id: int, new_history_id: int):
     """
