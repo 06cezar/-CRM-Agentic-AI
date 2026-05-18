@@ -1,0 +1,27 @@
+[
+  {
+    "email_body": "Hello, I am interested in your CRM solution for our 50-person sales team. Can we schedule a demo next Tuesday?",
+    "expected_is_worth_saving": true,
+    "label": "legitimate_inbound"
+  },
+  {
+    "email_body": "Increase your SEO rankings now! We offer cheap backlinks and guaranteed page 1 results. Click here to buy.",
+    "expected_is_worth_saving": false,
+    "label": "spam"
+  },
+  {
+    "email_body": "Hi, I saw your post on LinkedIn about agentic AI. We are looking to automate our lead qualification process. Do you have an API?",
+    "expected_is_worth_saving": true,
+    "label": "legitimate_inbound"
+  },
+  {
+    "email_body": "Dear Administrator, your account password expires in 24 hours. Please login at http://secure-login-verify.com to reset it.",
+    "expected_is_worth_saving": false,
+    "label": "phishing"
+  },
+  {
+    "email_body": "Hey, just following up on our call from yesterday. Attached is the proposal we discussed for the enterprise integration.",
+    "expected_is_worth_saving": true,
+    "label": "legitimate_followup"
+  }
+]

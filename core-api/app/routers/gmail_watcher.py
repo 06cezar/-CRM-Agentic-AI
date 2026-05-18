@@ -109,9 +109,11 @@ def restart_watch(account_id: int, db: Session = Depends(get_db), current_user: 
     if not account:
         raise HTTPException(status_code=404, detail="Contul nu a fost gasit")
     
-    success = activate_gmail_account_watch(db, account)
-    if not success:
+    history_id = update_gmail_watch_state(account, db, True)
+    if history_id is None:
         raise HTTPException(status_code=500, detail="Nu s-a putut reporni monitorizarea")
         
+    account.last_history_id = history_id
+    db.commit()
     return {"message": "Monitorizare repornita", "historyId": account.last_history_id}
 
