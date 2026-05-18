@@ -30,6 +30,6 @@ class Settings(BaseSettings):
     email_classifier_model: str = "llama3.2:3b"
     
     # Configurare pentru a citi si din fisier daca variabilele de mediu lipsesc
-    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore", env_ignore_empty=True)
 
 settings = Settings()
