@@ -8,12 +8,19 @@ import csv
 import io
 import os
 import logging
+import threading
 import httpx
 from app.database import get_db, SessionLocal
 from app.models import Lead, AgentActivity, User
 from app.auth import get_current_user
 from app.config import settings
+
 logger = logging.getLogger(__name__)
+
+# Lock global Ollama — garantează că un singur research rulează la un moment dat.
+# Coada îl ia lead cu lead; research-ul manual îl ia direct, cu prioritate față de
+# următorul item din coadă (dar nu întrerupe un research deja în curs).
+_ollama_lock = threading.Lock()
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -90,12 +97,32 @@ class LeadResponse(BaseModel):
 
 # ── Background research ───────────────────────────────────────────────────────
 
+def _run_research_queue(lead_ids: list[int]) -> None:
+    """
+    Procesează o listă de lead-uri secvențial: research → copilot pentru fiecare.
+    Între leaduri, cedează lock-ul — research-ul manual poate intra cu prioritate.
+    """
+    for lead_id in lead_ids:
+        try:
+            with _ollama_lock:  # cedează lock-ul după fiecare lead
+                _run_research_locked(lead_id)
+        except Exception as e:
+            logger.warning(f"Queue: research failed for lead {lead_id}: {e}")
+            continue
+
 def _run_research_in_background(lead_id: int) -> None:
     """
     Apelează ai-service și persistă rezultatele pentru un lead.
     Rulează în background după crearea unui lead — nu blochează răspunsul.
     Folosește propria sesiune DB (nu cea din request, care e deja închisă).
+    Achiziționează _ollama_lock pentru a nu concura cu alți agenți.
     """
+    with _ollama_lock:
+        _run_research_locked(lead_id)
+
+
+def _run_research_locked(lead_id: int) -> None:
+    """Corpul efectiv al research-ului — trebuie apelat cu _ollama_lock deținut."""
     db = SessionLocal()
     try:
         lead = db.query(Lead).filter(Lead.id == lead_id).first()
@@ -113,7 +140,7 @@ def _run_research_in_background(lead_id: int) -> None:
         }
 
         try:
-            with httpx.Client(timeout=60.0) as client:
+            with httpx.Client(timeout=120.0) as client:
                 response = client.post(f"{settings.ai_service_url}/agent/research", json=payload)
                 response.raise_for_status()
                 result = response.json()
@@ -325,7 +352,7 @@ def research_lead(
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
-    # ── Apelează ai-service ───────────────────────────────────────────────────
+    # ── Apelează ai-service (cu prioritate față de coada de import) ──────────
     payload = {
         "id": lead.id,
         "name": lead.name,
@@ -336,13 +363,22 @@ def research_lead(
         "last_activity_description": lead.last_activity_description,
     }
 
+    # Încearcă să obțină lock-ul în max 30s; dacă AI-ul e ocupat, returnează 503
+    acquired = _ollama_lock.acquire(timeout=30)
+    if not acquired:
+        raise HTTPException(
+            status_code=503,
+            detail="AI agent is busy processing other leads. Try again in a moment.",
+        )
     try:
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=120.0) as client:
             response = client.post(f"{settings.ai_service_url}/agent/research", json=payload)
             response.raise_for_status()
             result = response.json()
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"AI service unavailable: {str(e)}")
+    finally:
+        _ollama_lock.release()
 
     # ── Persistă rezultatele în leads ────────────────────────────────────────
     lead.intent_score = result["intent_score"]
@@ -363,6 +399,70 @@ def research_lead(
     db.commit()
     db.refresh(lead)
 
+    # ── Înlănțuie CopilotAgent în background ─────────────────────────────────
+    import threading
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from app.models import CopilotResult
+
+    def _run_copilot(lead_id: int, lead_data: dict):
+        bg_db = SessionLocal()
+        try:
+            with _ollama_lock:  # serializează cu coada de research
+                with httpx.Client(timeout=120.0) as c:
+                    resp = c.post(f"{settings.ai_service_url}/agent/copilot", json=lead_data)
+                    resp.raise_for_status()
+                    copilot_result = resp.json()
+
+            now = datetime.now(timezone.utc)
+            stmt = pg_insert(CopilotResult).values(
+                lead_id=lead_id,
+                winning_argument=copilot_result["winning_argument"],
+                draft_message=copilot_result["draft_message"],
+                confidence=copilot_result["confidence"],
+                model_used=os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+                generated_at=now,
+                lead_snapshot=lead_data,
+            ).on_conflict_do_update(
+                index_elements=["lead_id"],
+                set_={
+                    "winning_argument": copilot_result["winning_argument"],
+                    "draft_message": copilot_result["draft_message"],
+                    "confidence": copilot_result["confidence"],
+                    "model_used": os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+                    "generated_at": now,
+                    "lead_snapshot": lead_data,
+                },
+            )
+            bg_db.execute(stmt)
+            bg_db.add(AgentActivity(
+                lead_id=lead_id,
+                lead_name=lead_data["name"],
+                agent_name="CopilotAgent",
+                action_type="insight",
+                message=f"Generated co-pilot insights for {lead_data['name']}",
+                payload=copilot_result,
+                status="completed",
+            ))
+            bg_db.commit()
+        except Exception as e:
+            logger.warning(f"Copilot background failed for lead {lead_id}: {e}")
+            bg_db.rollback()
+        finally:
+            bg_db.close()
+
+    copilot_payload = {
+        "id": lead.id,
+        "name": lead.name,
+        "company": lead.company,
+        "role": lead.role,
+        "email": lead.email,
+        "intent_score": lead.intent_score,
+        "signals": lead.signals or [],
+        "deal_value_display": _format_deal_value(lead.deal_value, lead.currency),
+        "last_activity_description": lead.last_activity_description,
+    }
+    threading.Thread(target=_run_copilot, args=(lead.id, copilot_payload), daemon=True).start()
+
     return lead
 
 
@@ -378,7 +478,8 @@ _COL_MAP = {
     "phone": "phone", "phone number": "phone", "mobile": "phone",
     "deal value": "deal_value", "amount": "deal_value", "deal amount": "deal_value", "value": "deal_value",
     "currency": "currency",
-    "last activity": "last_activity_description", "notes": "last_activity_description",
+    "last activity": "last_activity_description", "last_activity_description": "last_activity_description",
+    "last activity description": "last_activity_description", "notes": "last_activity_description",
     "description": "last_activity_description", "activity": "last_activity_description",
     "status": "status",
 }
@@ -388,9 +489,11 @@ def _map_row(row: dict) -> dict:
     """Mapează un rând CSV la câmpurile modelului Lead."""
     mapped: dict = {}
     for col, val in row.items():
+        if col is None:
+            continue
         key = _COL_MAP.get(col.lower().strip())
-        if key and val.strip():
-            mapped[key] = val.strip()
+        if key and val and str(val).strip():
+            mapped[key] = str(val).strip()
 
     # Combină first name + last name dacă nu există "name"
     if "name" not in mapped:
@@ -406,7 +509,6 @@ def _map_row(row: dict) -> dict:
 @router.post("/import")
 async def import_leads_csv(
     file: UploadFile = File(...),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -427,6 +529,7 @@ async def import_leads_csv(
     reader = csv.DictReader(io.StringIO(text))
 
     imported, skipped, errors = 0, 0, []
+    queued_lead_ids: list[int] = []
 
     for i, row in enumerate(reader, start=2):  # start=2 pt că linia 1 e header
         mapped = _map_row(row)
@@ -461,13 +564,24 @@ async def import_leads_csv(
         db.add(lead)
         db.flush()  # obținem lead.id fără commit
 
-        background_tasks.add_task(_run_research_in_background, lead.id)
+        queued_lead_ids.append(lead.id)
         imported += 1
 
     db.commit()
 
+    # Un singur background task care procesează toate leadurile secvențial
+    # research → copilot per lead, unul câte unul — Ollama nu e bombardat
+    if queued_lead_ids:
+        import threading
+        threading.Thread(
+            target=_run_research_queue,
+            args=(queued_lead_ids,),
+            daemon=True,
+        ).start()
+
     return {
         "imported": imported,
         "skipped": skipped,
-        "errors": errors[:10],  # max 10 erori în răspuns
+        "errors": errors[:10],
+        "queued_for_research": len(queued_lead_ids),
     }

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from app.routers.leads import _ollama_lock
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from pydantic import BaseModel, ConfigDict
@@ -171,10 +172,14 @@ def regenerate_copilot(
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
+    acquired = _ollama_lock.acquire(timeout=5)
     try:
         result = _call_copilot_agent(lead)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"AI service unavailable: {str(e)}")
+    finally:
+        if acquired:
+            _ollama_lock.release()
 
     saved = _upsert_copilot_result(db, lead, result)
     _log_activity(db, lead)

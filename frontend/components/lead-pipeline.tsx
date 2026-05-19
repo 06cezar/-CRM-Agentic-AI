@@ -99,6 +99,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
   const [researchError, setResearchError] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "hot" | "warm" | "cool">("all")
 
+  // Fetch complet — înlocuiește toată lista și reordonează (folosit la mount + refresh manual)
   const fetchLeads = useCallback(async () => {
     try {
       const data = await api.getLeads()
@@ -108,6 +109,26 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
       setFetchError(true)
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  // Fetch silențios — merge doar scorurile/semnalele în leads existente fără a schimba
+  // ordinea sau a reseta scroll-ul. Folosit de polling-ul din background.
+  const fetchLeadsSilent = useCallback(async () => {
+    try {
+      const data = await api.getLeads()
+      const byId = new Map(data.map((l) => [String(l.id), fromAPI(l)]))
+      setLeads((prev) =>
+        prev.map((lead) => {
+          const updated = byId.get(lead.id)
+          if (!updated) return lead
+          // Actualizează doar câmpurile care se schimbă după research
+          return { ...lead, score: updated.score, signals: updated.signals, value: updated.value }
+        })
+      )
+      setFetchError(false)
+    } catch {
+      // ignoră erorile silențioase
     }
   }, [])
 
@@ -124,6 +145,16 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
       }
     }
   }, [leads, selectedLead, onSelectLead])
+
+  // Auto-refresh cât timp există leads fără scor (research în curs în background).
+  // Folosește fetchLeadsSilent — nu schimbă ordinea, nu resetează scroll-ul.
+  // Se oprește singur când toate leads-urile au scor.
+  useEffect(() => {
+    const hasPending = leads.some((l) => !l.score)
+    if (!hasPending) return
+    const interval = setInterval(fetchLeadsSilent, 5_000)
+    return () => clearInterval(interval)
+  }, [leads, fetchLeadsSilent])
 
   async function handleResearch(e: React.MouseEvent, leadId: string) {
     e.stopPropagation()
@@ -360,45 +391,45 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                           {lead.value}
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground truncate">
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                         {lead.lastActivity}
                       </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                      <div className="mt-2 flex flex-wrap gap-1">
                         {lead.signals.map((signal) => (
                           <span
                             key={signal}
-                            className="inline-flex items-center rounded-full border border-border/50 px-1.5 py-0 text-[10px] font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 h-5"
+                            className="inline-flex items-center rounded-full border border-border/50 px-1.5 py-0 text-[10px] font-semibold h-5"
                           >
                             {signal}
                           </span>
                         ))}
-                        {/* Research button — apare când nu e scor sau la hover */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleResearch(e, lead.id)
-                          }}
-                          disabled={isResearching}
-                          className={cn(
-                            "ml-auto flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
-                            isResearching
-                              ? "text-muted-foreground cursor-not-allowed"
-                              : "text-primary hover:bg-primary/10"
-                          )}
-                        >
-                          {isResearching ? (
-                            <>
-                              <RefreshCw className="size-3 animate-spin" />
-                              Analyzing...
-                            </>
-                          ) : (
-                            <>
-                              <Flame className="size-3" />
-                              Research
-                            </>
-                          )}
-                        </button>
                       </div>
+                      {/* Research button — pe rând separat */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleResearch(e, lead.id)
+                        }}
+                        disabled={isResearching}
+                        className={cn(
+                          "mt-1 flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors self-start",
+                          isResearching
+                            ? "text-muted-foreground cursor-not-allowed"
+                            : "text-primary hover:bg-primary/10"
+                        )}
+                      >
+                        {isResearching ? (
+                          <>
+                            <RefreshCw className="size-3 animate-spin" />
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            <Flame className="size-3" />
+                            Research
+                          </>
+                        )}
+                      </button>
                       
                     </div>
                     

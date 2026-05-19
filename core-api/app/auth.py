@@ -51,18 +51,20 @@ def get_current_user(
     return user
 
 
-conf = ConnectionConfig(
-    MAIL_USERNAME=settings.mail_username,
-    MAIL_PASSWORD=settings.mail_password,
-    MAIL_FROM=settings.mail_from,
-    MAIL_PORT=settings.mail_port,
-    MAIL_SERVER=settings.mail_server,
-    MAIL_FROM_NAME=settings.mail_from_name,
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
-)
+def _get_mail_conf() -> ConnectionConfig:
+    """Build mail config lazily — only called when SMTP is actually configured."""
+    return ConnectionConfig(
+        MAIL_USERNAME=settings.mail_username or "",
+        MAIL_PASSWORD=settings.mail_password or "",
+        MAIL_FROM=settings.mail_from or "noreply@example.com",
+        MAIL_PORT=settings.mail_port or 587,
+        MAIL_SERVER=settings.mail_server or "localhost",
+        MAIL_FROM_NAME=settings.mail_from_name or "CRM",
+        MAIL_STARTTLS=True,
+        MAIL_SSL_TLS=False,
+        USE_CREDENTIALS=True,
+        VALIDATE_CERTS=True,
+    )
 
 async def send_verification_email(email_to: str, token: str):
 
@@ -90,7 +92,7 @@ async def send_verification_email(email_to: str, token: str):
         subtype=MessageType.html
     )
 
-    fm = FastMail(conf)
+    fm = FastMail(_get_mail_conf())
     await fm.send_message(message)
 
 
@@ -175,5 +177,5 @@ async def send_reset_password_email(email_to: str, token: str):
         subtype=MessageType.html
     )
 
-    fm = FastMail(conf)
+    fm = FastMail(_get_mail_conf())
     await fm.send_message(message)

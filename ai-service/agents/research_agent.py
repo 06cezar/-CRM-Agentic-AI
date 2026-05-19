@@ -47,9 +47,18 @@ def _build_prompt(lead: dict) -> str:
         '  "confidence": 0.8\n'
         "}\n\n"
         "Rules:\n"
-        "- signals: 2-4 short buying signals (e.g. 'Demo Requested', 'Budget Approved', "
-        "'Decision Maker', 'Competitor Churn', 'Actively Researching', 'Trial Active')\n"
-        "- intent_score: integer 0-100 (80-100=hot ready to buy, 60-79=warm, 0-59=cool)\n"
+        "- signals: 2-4 short labels describing what you observe — can be POSITIVE or NEGATIVE.\n"
+        "  Positive examples: 'Demo Requested', 'Budget Approved', 'Decision Maker', 'Trial Active', 'Actively Researching'\n"
+        "  Negative examples: 'Negative Sentiment', 'Competitor Preferred', 'Budget Frozen', 'Unresponsive', 'Churned'\n"
+        "  Use negative signals when last activity contains complaints, rejection, or disinterest.\n"
+        "- intent_score: integer 0-100. Be realistic and critical:\n"
+        "  90-100: extremely hot, explicitly ready to buy now\n"
+        "  70-89: warm, clear buying intent but not urgent\n"
+        "  40-69: neutral or mixed signals\n"
+        "  10-39: cold, negative signals or low engagement\n"
+        "  0-9: strongly negative (hates company, rejected, churned)\n"
+        "  IMPORTANT: negative last activity (complaints, hate, rejection) MUST result in score below 40.\n"
+        "  IMPORTANT: no last activity or unknown activity should result in score below 60.\n"
         "- confidence: decimal 0.0-1.0\n"
         "- Return ONLY the JSON object, nothing else."
     )
@@ -139,7 +148,15 @@ def run(lead: dict) -> dict:
             response = client.chat.completions.create(
                 model=OLLAMA_MODEL,
                 messages=[
-                    {"role": "system", "content": "You are a sales analyst. Always respond with valid JSON only."},
+                    {"role": "system", "content": (
+                        "You are a brutally honest sales analyst. "
+                        "Always respond with valid JSON only. "
+                        "You MUST use the full 0-100 range: cold leads with bounced emails, "
+                        "inactive companies, or negative sentiment MUST score below 15. "
+                        "Leads with locked competitor contracts MUST score below 25. "
+                        "Never give a negative lead more than 35. "
+                        "Never default to 50 or 75 — every score must reflect the actual signals."
+                    )},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,

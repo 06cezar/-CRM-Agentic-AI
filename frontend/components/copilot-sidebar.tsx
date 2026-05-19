@@ -24,6 +24,7 @@ import {
   X,
   ChevronRight,
   RefreshCw,
+  ExternalLink,
 } from "lucide-react"
 
 interface CopilotSidebarProps {
@@ -46,10 +47,43 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
     }
     setCopilot(null)
     setLoading(true)
-    api.getCopilot(Number(lead.id))
-      .then(setCopilot)
-      .catch(() => setCopilot(null))
-      .finally(() => setLoading(false))
+
+    // `cancelled` previne race condition-ul: dacă userul schimbă lead-ul
+    // înainte ca un request in-flight să se termine, ignorăm răspunsul vechi.
+    let cancelled = false
+    let attempts = 0
+    const MAX_ATTEMPTS = 30   // 30 × 3s = 90s max
+    const INTERVAL_MS = 3000
+
+    const fetchCopilot = () => {
+      api.getCopilot(Number(lead.id))
+        .then((data) => {
+          if (cancelled) return  // lead s-a schimbat între timp — ignorăm
+          if (data?.winning_argument) {
+            setCopilot(data)
+            setLoading(false)
+          } else {
+            attempts++
+            if (attempts < MAX_ATTEMPTS) {
+              setTimeout(fetchCopilot, INTERVAL_MS)
+            } else {
+              setCopilot(data)
+              setLoading(false)
+            }
+          }
+        })
+        .catch(() => {
+          if (cancelled) return
+          setCopilot(null)
+          setLoading(false)
+        })
+    }
+
+    fetchCopilot()
+
+    return () => {
+      cancelled = true  // orice request in-flight va fi ignorat
+    }
   }, [lead?.id])
 
   const handleRegenerate = async () => {
@@ -73,6 +107,13 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
       setCopiedEmail(true)
       setTimeout(() => setCopiedEmail(false), 2000)
     }
+  }
+
+  const handleEditInGmail = () => {
+    if (!lead || !copilot?.draft_message) return
+    const subject = `Following up — ${lead.company}`
+    const url = `https://mail.google.com/mail/?view=cm&to=${encodeURIComponent(lead.email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(copilot.draft_message)}`
+    window.open(url, "_blank")
   }
 
   const handleSendEmail = async () => {
@@ -110,7 +151,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
   }
 
   return (
-    <div className="flex h-full flex-col animate-in slide-in-from-right-4">
+    <div className="flex h-full min-h-0 flex-col animate-in slide-in-from-right-4">
       {/* Header */}
       <div className="border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
@@ -134,7 +175,7 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-4 space-y-4">
           {/* Lead info card */}
           <div className="rounded-lg border border-border bg-secondary/30 p-4">
@@ -333,27 +374,38 @@ export function CopilotSidebar({ lead, onClose }: CopilotSidebarProps) {
               </div>
 
               {/* Action buttons */}
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={handleCopyEmail}
+                    disabled={!copilot?.draft_message}
+                  >
+                    {copiedEmail ? (
+                      <>
+                        <CheckCircle2 className="size-4 text-primary" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-4" />
+                        Copy
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 gap-2"
+                    onClick={handleEditInGmail}
+                    disabled={!copilot?.draft_message}
+                  >
+                    <ExternalLink className="size-4" />
+                    Edit in Gmail
+                  </Button>
+                </div>
                 <Button
-                  variant="outline"
-                  className="flex-1 gap-2"
-                  onClick={handleCopyEmail}
-                  disabled={!copilot?.draft_message}
-                >
-                  {copiedEmail ? (
-                    <>
-                      <CheckCircle2 className="size-4 text-primary" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="size-4" />
-                      Copy
-                    </>
-                  )}
-                </Button>
-                <Button
-                  className="flex-1 gap-2"
+                  className="w-full gap-2"
                   disabled={!copilot?.draft_message || sending}
                   onClick={handleSendEmail}
                 >

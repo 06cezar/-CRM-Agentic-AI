@@ -24,15 +24,18 @@ export default function AgenticCommandCenter() {
   return (
     <div className="flex h-screen flex-col bg-background">
       <CommandHeader onLeadCreated={() => setRefreshTrigger((n) => n + 1)} />
-      
+
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Activity Feed */}
-        <aside className="hidden lg:flex w-80 shrink-0 flex-col border-r border-border bg-card">
+        <aside className="hidden xl:flex w-80 shrink-0 flex-col border-r border-border bg-card overflow-hidden">
           <ActivityFeed />
         </aside>
 
-        {/* Center: Lead Pipeline */}
-        <main className="flex flex-1 flex-col overflow-hidden bg-background">
+        {/* Center: Lead Pipeline — hidden on mobile when copilot is open */}
+        <main className={cn(
+          "flex flex-1 flex-col overflow-hidden bg-background",
+          selectedLead && "hidden lg:flex"
+        )}>
           <LeadPipeline
             selectedLead={selectedLead}
             onSelectLead={setSelectedLead}
@@ -40,13 +43,13 @@ export default function AgenticCommandCenter() {
           />
         </main>
 
-        {/* Right: Co-pilot Sidebar */}
+        {/* Right: Co-pilot Sidebar — full screen on mobile when open */}
         <aside
           className={cn(
-            "shrink-0 flex-col border-l border-border bg-card transition-all duration-300",
+            "flex-col border-l border-border bg-card overflow-hidden transition-all duration-300",
             selectedLead
-              ? "w-80 xl:w-96 flex"
-              : "w-0 lg:w-80 lg:flex overflow-hidden"
+              ? "flex w-full lg:w-80 lg:shrink-0 xl:w-96"
+              : "hidden lg:flex lg:w-80 lg:shrink-0"
           )}
         >
           <CopilotSidebar
@@ -56,24 +59,15 @@ export default function AgenticCommandCenter() {
         </aside>
       </div>
 
-      {/* Mobile bottom bar for activity indicator */}
-      <div className="lg:hidden fixed bottom-4 left-4 right-4 flex items-center justify-between rounded-xl bg-card border border-border px-4 py-3 shadow-lg">
-        <div className="flex items-center gap-2">
-          <div className="size-2 rounded-full bg-primary animate-pulse" />
+      {/* Mobile bottom bar — only when no lead selected (copilot is closed) */}
+      {!selectedLead && (
+        <div className="lg:hidden fixed bottom-4 left-4 right-4 flex items-center gap-2 rounded-xl bg-card border border-border px-4 py-3 shadow-lg">
+          <div className="size-2 rounded-full bg-primary animate-pulse shrink-0" />
           <span className="text-xs text-muted-foreground">
             AI working in background
           </span>
         </div>
-        <button
-          onClick={() => setSelectedLead(null)}
-          className={cn(
-            "text-xs font-medium text-primary",
-            !selectedLead && "opacity-50"
-          )}
-        >
-          {selectedLead ? "Close Panel" : "Select Lead"}
-        </button>
-      </div>
+      )}
     </div>
   )
 }

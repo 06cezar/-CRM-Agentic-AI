@@ -62,6 +62,17 @@ def register(body: RegisterRequest, response: Response, background_tasks: Backgr
         background_tasks.add_task(send_verification_email, user.email, verification_token)
 
     db.refresh(user)
+
+    # Set access token cookie so the user is logged in immediately after register
+    token = create_access_token({"sub": str(user.id)})
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=60 * 60 * 24,
+    )
+
     return user
 
 class VerifyTokenRequest(BaseModel):

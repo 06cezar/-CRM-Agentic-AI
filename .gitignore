@@ -22,6 +22,7 @@ docs/
 .idea
 # Claude Code local settings
 .claude/
+CLAUDE.md
 .mcp.json
 
 # Presentations & generated slide assets
@@ -40,6 +41,21 @@ output.pptx
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+
+# Python virtual environments
+venv/
+.venv/
+env/
+
+# Pytest & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Logs
+*.log
 
 # TypeScript build cache
 frontend/tsconfig.tsbuildinfo
@@ -51,4 +67,8 @@ core-api/secrets
 secrets
 secrets/*
 core-api/secrets/*
+
+# Junk / debug files
+test_payload.json
+my-commit.md
 

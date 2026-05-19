@@ -33,30 +33,102 @@ def _build_prompt(lead: dict) -> str:
 
     signals = lead.get("signals", [])
     signals_text = ", ".join(signals) if signals else "none detected"
+    first_name = _val("name").split()[0]
+
+    try:
+        score = int(lead.get("intent_score") or 0)
+    except (TypeError, ValueError):
+        score = 0
+
+    # Tier-based instructions — tone and strategy vary by intent score
+    # NOTE: scorul numeric NU apare în prompt — modelul îl copia literal în argumente.
+    # Folosim doar descriptori acționabili (urgency, barriers etc.)
+    if score >= 80:
+        tier = "HOT"
+        tier_descriptor = "strong buying intent, urgent, ready to close"
+        argument_instruction = (
+            "Write a CLOSING argument for the sales rep: explain the specific urgency "
+            "and business risk of NOT acting now. Reference their signals and last activity. "
+            "Use language like 'urgent window', 'momentum', 'competitive risk'. "
+            "Do NOT mention any numeric score. 20-150 words."
+        )
+        email_instruction = (
+            "Write a CLOSING email: acknowledge their recent strong signals by name "
+            "(e.g. the demo request, the NDA, the on-site visit), create urgency around "
+            "timing, propose one concrete next step (call, contract, demo date). "
+            "Confident and direct tone. 50-200 words."
+        )
+        confidence_hint = "0.88"
+    elif score >= 50:
+        tier = "WARM"
+        tier_descriptor = "moderate interest, engaged but not yet committed"
+        argument_instruction = (
+            "Write a NURTURING argument for the sales rep: explain what specific value "
+            "they would gain by moving forward now versus waiting. Reference their engagement "
+            "signals by name. Focus on value, differentiation. "
+            "Do NOT mention any numeric score. 20-150 words."
+        )
+        email_instruction = (
+            "Write a NURTURING email: open by referencing their specific engagement "
+            "(name the webinar, the pricing page visits, the intro call — whatever applies). "
+            "Offer a relevant insight or case study, propose a low-friction next step. "
+            "Helpful, consultative tone. 50-200 words."
+        )
+        confidence_hint = "0.72"
+    elif score >= 20:
+        tier = "COLD"
+        tier_descriptor = "low engagement, clear objection or barrier present"
+        argument_instruction = (
+            "Write a RE-ENGAGEMENT argument for the sales rep: identify the specific barrier "
+            "(competitor lock-in, bad experience, budget freeze, silence) and suggest ONE "
+            "realistic way to address it. Be honest — do NOT oversell. "
+            "Do NOT mention any numeric score. 20-150 words."
+        )
+        email_instruction = (
+            "Write a RE-ENGAGEMENT email: acknowledge the specific obstacle or silence directly "
+            "(don't pretend everything is fine). Ask ONE open question to understand if their "
+            "situation has changed. Short, low pressure, 40-100 words. Do NOT pitch features."
+        )
+        confidence_hint = "0.45"
+    else:
+        tier = "LOST"
+        tier_descriptor = "negative signals, effectively disengaged or hostile"
+        argument_instruction = (
+            "Write a WIN-BACK argument for the sales rep: given the negative signals and last "
+            "activity, suggest the ONLY realistic path to re-open this deal — or state honestly "
+            "that there is no realistic path right now. "
+            "Do NOT mention any numeric score. 20-150 words."
+        )
+        email_instruction = (
+            "Write a WIN-BACK email: be very brief, acknowledge the negative experience or "
+            "long silence directly, do NOT pitch features or benefits. "
+            "Ask one simple human question to see if circumstances have changed. "
+            "Humble, no-pressure tone. Under 80 words."
+        )
+        confidence_hint = "0.25"
 
     return (
-        "You are an AI sales co-pilot. Analyze the lead below and respond with ONLY a JSON object.\n\n"
+        f"You are an AI sales co-pilot. Lead tier: {tier} ({tier_descriptor}). "
+        f"Respond with ONLY a JSON object.\n\n"
         f"Lead:\n"
         f"- Name: {_val('name')}\n"
         f"- Company: {_val('company')}\n"
         f"- Role: {_val('role')}\n"
-        f"- Email: {_val('email')}\n"
         f"- Deal value: {_val('deal_value_display')}\n"
-        f"- Intent score: {_val('intent_score')}/100\n"
-        f"- Buying signals: {signals_text}\n"
+        f"- Intent score: {score}/100\n"
+        f"- Engagement tier: {tier}\n"
+        f"- Signals: {signals_text}\n"
         f"- Last activity: {_val('last_activity_description', 'unknown')}\n\n"
         "Respond with ONLY this JSON (no markdown, no explanation, no extra text):\n"
         "{\n"
-        '  "winning_argument": "Strategic reason why this lead should buy NOW. Reference their company, role, and signals. 20-150 words. NOT an email.",\n'
-        '  "draft_message": "Hi FirstName,\\n\\nEmail body 50-300 words...\\n\\nBest regards,\\nYour Sales Team",\n'
-        '  "confidence": 0.85\n'
+        '  "winning_argument": "...",\n'
+        '  "draft_message": "...",\n'
+        f'  "confidence": {confidence_hint}\n'
         "}\n\n"
         "Rules:\n"
-        f"- winning_argument: internal strategic note for the sales rep, NOT an email. "
-        f"Explain WHY {_val('name')} at {_val('company')} should buy now. Mention signals. 20-150 words.\n"
-        f"- draft_message: outreach EMAIL to send to {_val('name')}. "
-        f"Start with 'Hi {_val('name').split()[0]},' — professional, specific, 50-300 words, no placeholders.\n"
-        "- confidence: decimal 0.0-1.0\n"
+        f"- winning_argument: {argument_instruction}\n"
+        f"- draft_message: Start with 'Hi {first_name},' — {email_instruction} No placeholders.\n"
+        "- confidence: decimal 0.0-1.0 reflecting how confident you are in this strategy\n"
         "- Return ONLY the JSON object, nothing else."
     )
 

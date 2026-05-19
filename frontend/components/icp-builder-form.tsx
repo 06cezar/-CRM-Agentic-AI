@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Loader2, Sparkles } from "lucide-react"
+import { Loader2, Sparkles, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -113,11 +113,22 @@ export function ICPBuilderForm() {
 
   return (
     <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-8 pb-12">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Ideal Customer Profile (ICP) Builder</h1>
-        <p className="text-muted-foreground">
-          Define your target market in natural language. Our AI will use this to find and rank leads.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">Ideal Customer Profile (ICP) Builder</h1>
+          <p className="text-muted-foreground">
+            Define your target market in natural language. Our AI will use this to find and rank leads.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push("/")}
+          className="text-muted-foreground hover:text-foreground shrink-0 mt-1"
+        >
+          <X className="size-4" />
+        </Button>
       </div>
 
       <div className="space-y-10">
