@@ -1,12 +1,14 @@
+import asyncio
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from sqlalchemy.orm import Session
-from app.models import ConnectedAccount
+from app.models import ConnectedAccount, Email
 from app.config import settings
 from app.database import get_db
 from app.database import SessionLocal
 from app.google_auth import get_gmail_service
+from app.services.ai_classifier import classify_incoming_email
 
 
 def update_gmail_watch_state(account: ConnectedAccount, db: Session, activate: bool = True):
@@ -95,7 +97,29 @@ def process_gmail_updates(account_id: int, new_history_id: int):
 
                         print(f"Email nou de la {sender}: {subject}")
 
-                        # AICI se poate adăuga logica de integrare în CRM
+                        # Clasificăm emailul cu AI
+                        try:
+                            classification = asyncio.run(
+                                classify_incoming_email(subject, snippet or "")
+                            )
+                            print(f"[Classifier] is_worth_saving={classification.is_worth_saving} score={classification.confidence_score}")
+
+                            # Dacă merită salvat, îl scriem în DB
+                            if classification.is_worth_saving:
+                                # Verificăm să nu salvăm duplicate
+                                existing = db.query(Email).filter(Email.email_id == msg_id).first()
+                                if not existing:
+                                    email_record = Email(
+                                        user_id=account.user_id,
+                                        email_id=msg_id,
+                                        subject=subject,
+                                        s3_path=f"gmail/{msg_id}",
+                                        ai_reasoning=classification.reasoning,
+                                        classification_score=classification.confidence_score,
+                                    )
+                                    db.add(email_record)
+                        except Exception as clf_e:
+                            print(f"[Classifier] Eroare la clasificare: {clf_e}")
                     except Exception as msg_e:
                         print(f"Eroare la procesarea mesajului individual: {msg_e}")
 

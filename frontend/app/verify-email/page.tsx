@@ -62,7 +62,7 @@ function VerifyEmailContent() {
 export default function VerifyEmailPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm p-8 text-center space-y-6 shadow-lg border border-border bg-card rounded-xl">
+      <div className="w-full max-w-sm md:max-w-md lg:max-w-lg xl:max-w-sm p-8 text-center space-y-6 shadow-lg border border-border bg-card rounded-xl">
         <div className="flex items-center gap-3 text-left">
           <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 border border-primary/20">
             <Cpu className="size-5 text-primary" />

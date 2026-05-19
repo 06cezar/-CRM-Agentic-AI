@@ -394,7 +394,7 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                       <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
                         {lead.lastActivity}
                       </p>
-                      <div className="mt-2 flex flex-wrap gap-1">
+                      <div className="mt-2 flex flex-wrap items-center gap-1">
                         {lead.signals.map((signal) => (
                           <span
                             key={signal}
@@ -403,33 +403,33 @@ export function LeadPipeline({ selectedLead, onSelectLead, refreshTrigger }: Lea
                             {signal}
                           </span>
                         ))}
+                        {/* Research button — la dreapta în același rând cu signals */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleResearch(e, lead.id)
+                          }}
+                          disabled={isResearching}
+                          className={cn(
+                            "ml-auto flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors",
+                            isResearching
+                              ? "text-muted-foreground cursor-not-allowed"
+                              : "text-primary hover:bg-primary/10"
+                          )}
+                        >
+                          {isResearching ? (
+                            <>
+                              <RefreshCw className="size-3 animate-spin" />
+                              Analyzing...
+                            </>
+                          ) : (
+                            <>
+                              <Flame className="size-3" />
+                              Research
+                            </>
+                          )}
+                        </button>
                       </div>
-                      {/* Research button — pe rând separat */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleResearch(e, lead.id)
-                        }}
-                        disabled={isResearching}
-                        className={cn(
-                          "mt-1 flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors self-start",
-                          isResearching
-                            ? "text-muted-foreground cursor-not-allowed"
-                            : "text-primary hover:bg-primary/10"
-                        )}
-                      >
-                        {isResearching ? (
-                          <>
-                            <RefreshCw className="size-3 animate-spin" />
-                            Analyzing...
-                          </>
-                        ) : (
-                          <>
-                            <Flame className="size-3" />
-                            Research
-                          </>
-                        )}
-                      </button>
                       
                     </div>
                     
