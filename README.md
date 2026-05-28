@@ -99,3 +99,158 @@ docker compose logs core-api -f    # urmărește logurile unui serviciu
 cd core-api && python -m pytest tests/ -q
 cd ai-service && python -m pytest tests/ -q
 ```
+
+---
+
+## System Architecture Diagrams
+
+### 1. High-Level Architecture
+```mermaid
+graph TD
+    UI[Frontend: Next.js] --> API[Core API: FastAPI]
+    API --> AI[AI Service: FastAPI]
+    API --> Scraper[Scraper Service: FastAPI]
+    
+    API --> DB[(PostgreSQL)]
+    API --> Storage[(MinIO)]
+    
+    AI --> Ollama[Ollama LLM]
+    Scraper --> LinkedIn[LinkedIn]
+    
+    PubSub[Google Pub/Sub] --> API
+    API --> Gmail[Gmail API]
+```
+
+### 2. Class Diagram (Data Models)
+```mermaid
+classDiagram
+    class User {
+        +UUID id
+        +String email
+        +String role
+    }
+    
+    class ConnectedAccount {
+        +UUID id
+        +UUID user_id
+        +String provider
+    }
+
+    class Lead {
+        +UUID id
+        +String name
+        +Integer intent_score
+        +String status
+    }
+
+    class ScrapeJob {
+        +UUID id
+        +String query
+        +String status
+    }
+
+    class AgentActivity {
+        +UUID id
+        +UUID lead_id
+        +String action
+    }
+
+    class CopilotResult {
+        +UUID id
+        +UUID lead_id
+        +Text sales_argument
+    }
+
+    class Email {
+        +UUID id
+        +String message_id
+        +Boolean is_worth_saving
+    }
+    
+    class ICPBlueprint {
+        +UUID id
+        +JSON criteria
+    }
+
+    User *-- ConnectedAccount
+    User *-- Lead
+    ScrapeJob *-- Lead
+    Lead *-- AgentActivity
+    Lead *-- CopilotResult
+    Lead *-- Email
+```
+
+### 3. Lead Research Flow
+```mermaid
+sequenceDiagram
+    participant UI as Frontend
+    participant Core as Core API
+    participant DB as PostgreSQL
+    participant AI as AI Service
+    participant LLM as Ollama
+
+    UI->>Core: POST /leads/{id}/research
+    Core->>DB: Fetch Lead Data
+    DB-->>Core: Lead Record
+    Core->>AI: POST /agent/research
+    
+    Note right of AI: ResearchAgent execution
+    AI->>LLM: Prompt Evaluation
+    LLM-->>AI: JSON Result
+    
+    AI-->>Core: Parsed Insights
+    Core->>DB: Update Lead
+    Core->>DB: Create AgentActivity
+    Core-->>UI: 200 OK
+```
+
+### 4. LinkedIn Scraping Flow
+```mermaid
+sequenceDiagram
+    participant UI as Frontend
+    participant Core as Core API
+    participant DB as PostgreSQL
+    participant Scraper as Scraper Service
+    participant LI as LinkedIn
+
+    UI->>Core: POST /scraper/jobs
+    Core->>DB: Create ScrapeJob
+    Core->>Scraper: POST /jobs (async)
+    Core-->>UI: 202 Accepted
+    
+    Scraper->>LI: Scrape Data
+    
+    loop Every Page
+        LI-->>Scraper: HTML Data
+        Scraper->>Core: POST /leads (Batch)
+        Core->>DB: Save Leads
+    end
+    
+    Scraper->>Core: PATCH /jobs (completed)
+    Core->>DB: Update Status
+```
+
+### 5. Gmail Integration Flow
+```mermaid
+sequenceDiagram
+    participant PubSub as Google Pub/Sub
+    participant Core as Core API
+    participant Gmail as Gmail API
+    participant AI as AI Classifier
+    participant MinIO as MinIO Storage
+    participant DB as PostgreSQL
+
+    PubSub->>Core: POST /gmail/webhook
+    Core-->>PubSub: 200 OK
+    
+    Core->>Gmail: Fetch new messages
+    Gmail-->>Core: Raw Email
+    
+    Core->>AI: evaluate_relevance()
+    AI-->>Core: is_worth_saving
+    
+    alt is_worth_saving == True
+        Core->>MinIO: Store Body
+        Core->>DB: Save Metadata
+    end
+```
