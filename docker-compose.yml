@@ -41,6 +41,9 @@ services:
     environment:
       - CORE_API_URL=http://core-api:8000
       - INTERNAL_TOKEN=${INTERNAL_TOKEN}
+      - LINKEDIN_PROFILE_DIR=/data/ff-profile
+    volumes:
+      - linkedin_profile:/data
     depends_on:
       - core-api
     networks:
@@ -116,3 +119,4 @@ networks:
 volumes:
   postgres_data:
   ollama_data:
+  linkedin_profile:
