@@ -4,8 +4,6 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { toast } from "sonner"
 import {
   X,
-  Upload,
-  FileText,
   CheckCircle,
   AlertCircle,
   Loader2,
@@ -29,10 +27,9 @@ export function LinkedInScraperModal({ open, onClose, onSuccess }: LinkedInScrap
   const [hasCredentials, setHasCredentials] = useState(false)
 
   // Credentials tab
-  const [cookieFile, setCookieFile] = useState<File | null>(null)
+  const [cookieText, setCookieText] = useState("")
   const [credLoading, setCredLoading] = useState(false)
   const [credError, setCredError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Scrape tab
   const [query, setQuery] = useState("")
@@ -86,7 +83,7 @@ export function LinkedInScraperModal({ open, onClose, onSuccess }: LinkedInScrap
   }, [activeJob?.id, activeJob?.status, onSuccess])
 
   function handleClose() {
-    setCookieFile(null)
+    setCookieText("")
     setCredError(null)
     setScrapeError(null)
     onClose()
@@ -94,35 +91,19 @@ export function LinkedInScraperModal({ open, onClose, onSuccess }: LinkedInScrap
 
   // ── Credentials tab ──────────────────────────────────────────────────────
 
-  function handleCookieFile(f: File | null) {
-    if (!f) return
-    if (!f.name.toLowerCase().endsWith(".json")) {
-      setCredError("Please upload a .json file exported from Cookie-Editor")
-      return
-    }
-    setCookieFile(f)
-    setCredError(null)
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    handleCookieFile(e.dataTransfer.files[0] ?? null)
-  }
-
   async function handleSaveCookies() {
-    if (!cookieFile) return
+    if (!cookieText.trim()) return
     setCredLoading(true)
     setCredError(null)
     try {
-      const text = await cookieFile.text()
-      JSON.parse(text) // validate JSON
-      await api.uploadLinkedInCookies(text)
+      JSON.parse(cookieText)
+      await api.uploadLinkedInCookies(cookieText)
       setHasCredentials(true)
-      setCookieFile(null)
+      setCookieText("")
       toast.success("Cookies saved", { description: "LinkedIn session is now active" })
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to save cookies"
-      setCredError(msg.includes("JSON") ? "Invalid JSON — make sure you exported from Cookie-Editor" : msg)
+      setCredError(msg.includes("JSON") ? "Invalid JSON — paste the full array from Cookie-Editor" : msg)
       toast.error("Failed to save cookies", { description: msg })
     } finally {
       setCredLoading(false)
@@ -255,11 +236,11 @@ export function LinkedInScraperModal({ open, onClose, onSuccess }: LinkedInScrap
           {tab === "credentials" && (
             <div className="space-y-4">
               <p className="text-xs text-muted-foreground">
-                Export your LinkedIn Sales Navigator session cookies using the{" "}
-                <strong>Cookie-Editor</strong> browser extension, then upload the JSON file here.
+                Export your LinkedIn session cookies using the{" "}
+                <strong>Cookie-Editor</strong> browser extension (Export → JSON), then paste the JSON array below.
               </p>
 
-              {hasCredentials && !cookieFile && (
+              {hasCredentials && (
                 <div className="flex items-center justify-between p-3 rounded-lg border border-green-500/30 bg-green-500/10">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="size-4 text-green-400" />
@@ -274,40 +255,13 @@ export function LinkedInScraperModal({ open, onClose, onSuccess }: LinkedInScrap
                 </div>
               )}
 
-              <div
-                className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
-                onDrop={handleDrop}
-                onDragOver={(e) => e.preventDefault()}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  className="hidden"
-                  onChange={(e) => handleCookieFile(e.target.files?.[0] ?? null)}
-                />
-                {cookieFile ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <FileText className="size-5 text-primary" />
-                    <span className="text-sm font-medium">{cookieFile.name}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setCookieFile(null) }}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Upload className="size-8 text-muted-foreground mx-auto" />
-                    <p className="text-sm text-muted-foreground">
-                      Drop your <code className="text-xs bg-muted px-1 rounded">cookies.json</code> here or{" "}
-                      <span className="text-primary underline">browse file</span>
-                    </p>
-                  </div>
-                )}
-              </div>
+              <textarea
+                value={cookieText}
+                onChange={(e) => { setCookieText(e.target.value); setCredError(null) }}
+                placeholder={'[\n  { "name": "li_at", "value": "...", ... },\n  ...\n]'}
+                rows={8}
+                className="w-full px-3 py-2 rounded-md border border-input bg-background text-xs font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+              />
 
               {credError && (
                 <p className="text-sm text-destructive flex items-center gap-1.5">
@@ -319,7 +273,7 @@ export function LinkedInScraperModal({ open, onClose, onSuccess }: LinkedInScrap
               <div className="flex justify-end gap-2 pt-2 border-t border-border">
                 <button
                   onClick={handleSaveCookies}
-                  disabled={!cookieFile || credLoading}
+                  disabled={!cookieText.trim() || credLoading}
                   className="h-9 px-4 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {credLoading && <Loader2 className="size-4 animate-spin" />}
