@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "CRM Lead Scraper — LinkedIn Sales Navigator",
+  "version": "0.1.0",
+  "description": "Scrape leads from a LinkedIn Sales Navigator search in your own browser and send them to your CRM.",
+  "permissions": ["cookies", "activeTab", "scripting", "storage", "tabs"],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "http://localhost:8000/*",
+    "https://gills-skimming-slick.ngrok-free.dev/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CRM Lead Scraper"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/sales/search/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -13,7 +13,6 @@ import {
   RefreshCw,
   Plus,
 } from "lucide-react"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { api, type LeadAPI } from "@/lib/api"
 import { toast } from "sonner"
 

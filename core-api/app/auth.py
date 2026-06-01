@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, Cookie
+from fastapi import Depends, HTTPException, Cookie, Header
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import User
@@ -40,6 +40,36 @@ def get_current_user(
     try:
         payload = jwt.decode(access_token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: int = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+
+def get_current_user_flexible(
+    access_token: str | None = Cookie(default=None),
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> User:
+    """
+    Like get_current_user, but also accepts the JWT via an Authorization: Bearer
+    header. Used by the browser-extension endpoints: the extension reads the
+    httpOnly access_token cookie via chrome.cookies and forwards it as a Bearer
+    header (the SameSite=Lax cookie won't auto-attach on cross-origin requests).
+    """
+    token = access_token
+    if not token and authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
     except JWTError:

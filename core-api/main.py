@@ -55,6 +55,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000",
                    "https://gills-skimming-slick.ngrok-free.dev"],
+    # Allow the browser extension origin (chrome-extension://<id>) to call the
+    # /scraper/ext/* endpoints. The extension authenticates via Bearer header.
+    allow_origin_regex=r"chrome-extension://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

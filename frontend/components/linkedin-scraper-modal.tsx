@@ -235,9 +235,23 @@ export function LinkedInScraperModal({ open, onClose, onSuccess }: LinkedInScrap
           {/* ── Credentials Tab ── */}
           {tab === "credentials" && (
             <div className="space-y-4">
+              <div className="p-3 rounded-lg border border-primary/30 bg-primary/10 space-y-1.5">
+                <p className="text-sm font-medium flex items-center gap-1.5">
+                  <CheckCircle className="size-4 text-primary" />
+                  Recommended: use the browser extension
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Install the <strong>CRM Lead Scraper</strong> extension, log in here,
+                  then open a LinkedIn Sales Navigator search and click the extension to
+                  pull leads straight into your pipeline. Scraping runs in your own
+                  browser — no cookies to upload, and your LinkedIn session stays safe.
+                </p>
+              </div>
+
               <p className="text-xs text-muted-foreground">
-                Export your LinkedIn session cookies using the{" "}
-                <strong>Cookie-Editor</strong> browser extension (Export → JSON), then paste the JSON array below.
+                <span className="font-medium">Legacy (manual cookies):</span> export your
+                LinkedIn session cookies using the <strong>Cookie-Editor</strong> browser
+                extension (Export → JSON), then paste the JSON array below.
               </p>
 
               {hasCredentials && (

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db, SessionLocal
 from app.models import Lead, LinkedInCredential, ScrapeJob
-from app.auth import get_current_user
+from app.auth import get_current_user, get_current_user_flexible
 from app.models import User
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,16 @@ class CredentialsUpload(BaseModel):
 class ScrapeJobCreate(BaseModel):
     query: str
     pages: int = 2
+
+
+class ExtJobCreate(BaseModel):
+    """Job created by the browser extension — no server-side scraping involved."""
+    query: str
+
+
+class ExtJobPatch(BaseModel):
+    status: Optional[str] = None
+    scraped_count: Optional[int] = None
 
 
 class ScrapeJobResponse(BaseModel):
@@ -113,6 +123,74 @@ def _run_research_thread(lead_id: int) -> None:
     """Trigger research for a scraped lead in a background thread."""
     from app.routers.leads import _run_research_in_background
     _run_research_in_background(lead_id)
+
+
+def _ingest_leads(db: Session, job: ScrapeJob, leads: list["ScrapedLeadItem"]) -> dict:
+    """
+    Dedup + create Lead rows for a batch of scraped leads and trigger AI research
+    per new lead. Shared by the internal (scraper-service) and extension endpoints.
+    """
+    user_id = job.user_id
+    accepted = 0
+    skipped = 0
+
+    for item in leads:
+        if not item.name:
+            skipped += 1
+            continue
+
+        # Primary dedup: linkedin_url
+        if item.profile_url:
+            exists = db.query(Lead).filter(
+                Lead.linkedin_url == item.profile_url,
+                Lead.assigned_to == user_id,
+            ).first()
+            if exists:
+                skipped += 1
+                continue
+
+        # Fallback dedup: name + company
+        if item.name and item.company:
+            exists = db.query(Lead).filter(
+                Lead.name == item.name,
+                Lead.company == item.company,
+                Lead.assigned_to == user_id,
+            ).first()
+            if exists:
+                skipped += 1
+                continue
+
+        placeholder_email = f"scraped_li_{uuid4().hex[:8]}@placeholder.invalid"
+        note = "Scraped from LinkedIn Sales Navigator"
+        if item.location:
+            note += f" · {item.location}"
+
+        lead = Lead(
+            name=item.name,
+            company=item.company or "—",
+            role=item.title or "—",
+            email=placeholder_email,
+            last_activity_description=note,
+            linkedin_url=item.profile_url,
+            status="new",
+            assigned_to=user_id,
+        )
+        db.add(lead)
+        db.flush()
+
+        threading.Thread(
+            target=_run_research_thread,
+            args=(lead.id,),
+            daemon=True,
+        ).start()
+
+        accepted += 1
+
+    job.leads_created = (job.leads_created or 0) + accepted
+    job.scraped_count = (job.scraped_count or 0) + accepted + skipped
+    db.commit()
+
+    return {"accepted": accepted, "skipped": skipped}
 
 
 # ── Credentials endpoints ─────────────────────────────────────────────────────
@@ -269,66 +347,7 @@ def receive_scraped_leads(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    user_id = job.user_id
-    accepted = 0
-    skipped = 0
-
-    for item in body.leads:
-        if not item.name:
-            skipped += 1
-            continue
-
-        # Primary dedup: linkedin_url
-        if item.profile_url:
-            exists = db.query(Lead).filter(
-                Lead.linkedin_url == item.profile_url,
-                Lead.assigned_to == user_id,
-            ).first()
-            if exists:
-                skipped += 1
-                continue
-
-        # Fallback dedup: name + company
-        if item.name and item.company:
-            exists = db.query(Lead).filter(
-                Lead.name == item.name,
-                Lead.company == item.company,
-                Lead.assigned_to == user_id,
-            ).first()
-            if exists:
-                skipped += 1
-                continue
-
-        placeholder_email = f"scraped_li_{uuid4().hex[:8]}@placeholder.invalid"
-        note = f"Scraped from LinkedIn Sales Navigator"
-        if item.location:
-            note += f" · {item.location}"
-
-        lead = Lead(
-            name=item.name,
-            company=item.company or "—",
-            role=item.title or "—",
-            email=placeholder_email,
-            last_activity_description=note,
-            linkedin_url=item.profile_url,
-            status="new",
-            assigned_to=user_id,
-        )
-        db.add(lead)
-        db.flush()
-
-        threading.Thread(
-            target=_run_research_thread,
-            args=(lead.id,),
-            daemon=True,
-        ).start()
-
-        accepted += 1
-
-    job.leads_created = (job.leads_created or 0) + accepted
-    db.commit()
-
-    return {"accepted": accepted, "skipped": skipped}
+    return _ingest_leads(db, job, body.leads)
 
 
 @router.patch("/jobs/{job_id}")
@@ -340,6 +359,77 @@ def update_scrape_job(
 ):
     """Internal endpoint: scraper-service updates job status/progress."""
     job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(job, field, value)
+
+    db.commit()
+    return {"ok": True}
+
+
+# ── Browser-extension endpoints (user-authed via cookie or Bearer header) ──────
+
+@router.post("/ext/jobs", response_model=ScrapeJobResponse, status_code=201)
+def create_ext_job(
+    body: ExtJobCreate,
+    current_user: User = Depends(get_current_user_flexible),
+    db: Session = Depends(get_db),
+):
+    """
+    Create a scrape job for the browser extension. Unlike POST /jobs, this does
+    NOT require stored LinkedIn credentials and does NOT dispatch to any
+    server-side scraper — the extension scrapes in the user's own browser and
+    posts leads back to /ext/jobs/{id}/leads.
+    """
+    if not body.query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty")
+
+    job = ScrapeJob(
+        user_id=current_user.id,
+        query=body.query.strip(),
+        pages_requested=0,
+        status="running",
+        scraped_count=0,
+        leads_created=0,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return job
+
+
+@router.post("/ext/jobs/{job_id}/leads")
+def receive_ext_leads(
+    job_id: int,
+    body: InternalLeadsPayload,
+    current_user: User = Depends(get_current_user_flexible),
+    db: Session = Depends(get_db),
+):
+    """Extension posts a batch of leads scraped from the user's own browser."""
+    job = db.query(ScrapeJob).filter(
+        ScrapeJob.id == job_id,
+        ScrapeJob.user_id == current_user.id,
+    ).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    return _ingest_leads(db, job, body.leads)
+
+
+@router.patch("/ext/jobs/{job_id}")
+def update_ext_job(
+    job_id: int,
+    body: ExtJobPatch,
+    current_user: User = Depends(get_current_user_flexible),
+    db: Session = Depends(get_db),
+):
+    """Extension finalizes its job (e.g. status=completed)."""
+    job = db.query(ScrapeJob).filter(
+        ScrapeJob.id == job_id,
+        ScrapeJob.user_id == current_user.id,
+    ).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
