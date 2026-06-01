@@ -235,7 +235,7 @@ def get_credentials_status(
     """Check if the current user has active LinkedIn credentials."""
     cred = db.query(LinkedInCredential).filter(
         LinkedInCredential.user_id == current_user.id,
-        LinkedInCredential.is_active == True,
+        LinkedInCredential.is_active == True,  # noqa: E712
     ).first()
     return {"has_credentials": cred is not None}
 
@@ -270,7 +270,7 @@ def create_scrape_job(
 
     cred = db.query(LinkedInCredential).filter(
         LinkedInCredential.user_id == current_user.id,
-        LinkedInCredential.is_active == True,
+        LinkedInCredential.is_active == True,  # noqa: E712
     ).first()
     if not cred:
         raise HTTPException(status_code=400, detail="No active LinkedIn credentials. Upload cookies first.")

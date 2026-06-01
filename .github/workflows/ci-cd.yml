@@ -21,8 +21,8 @@ jobs:
         run: pip install ruff
       - name: Run Ruff
         run: |
-          ruff check ./core-api || echo "Ruff a gasit probleme in core-api"
-          ruff check ./ai-service || echo "Ruff a gasit probleme in ai-service"
+          ruff check ./core-api
+          ruff check ./ai-service
   test_core_api:
     name: Test Core API
     needs: lint
