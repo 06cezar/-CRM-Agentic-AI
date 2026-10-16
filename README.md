@@ -1,360 +1,126 @@
 # CRM Agentic AI
-# Demo -> https://youtu.be/N_b_pXKzs0w
-Un CRM cu agenți AI care analizează lead-uri în timp real, calculează scorul de intenție și generează sugestii personalizate pentru vânzători.
 
-Interfața are 3 coloane:
-- **Activity Feed** — activitățile agenților AI în timp real
-- **Intent Pipeline** — lead-urile sortate după scorul de intenție calculat de AI
-- **Co-pilot Sidebar** — winning argument + draft mesaj personalizat per lead
+**A sales CRM where LLM agents research every new lead, score its buying intent and draft personalized outreach. Everything runs on a local model.**
 
----
+[![Demo video](https://img.youtube.com/vi/N_b_pXKzs0w/maxresdefault.jpg)](https://youtu.be/N_b_pXKzs0w)
 
-## MDS 2026 — Development Process Checklist
+▶ **[Watch the demo](https://youtu.be/N_b_pXKzs0w)** · 4-person university team project, March–June 2026 · Team repo: [vladinsc/-CRM-Agentic-AI](https://github.com/vladinsc/-CRM-Agentic-AI)
 
-| # | Cerință barem | Link |
-|---|---|---|
-| A | **2+ agenți AI funcționali** | LeadResearchAgent, CopilotAgent, SearchQueryAgent, EmailClassifier — vezi [Funcționalități](#funcționalități) |
-| B1 | **User stories (min 10) + backlog creat cu AI** | [User Stories](#user-stories) · [Jira Backlog](https://crm-agentic-ai.atlassian.net/jira/software/projects/CRM/boards/35/backlog) |
-| B2 | **Diagrame UML / arhitectură** | [System Architecture Diagrams](#system-architecture-diagrams) |
-| B3 | **Source control: branches, PRs, min 5 commits/student** | [Pull Requests](https://github.com/vladinsc/-CRM-Agentic-AI/pulls?q=is%3Apr+is%3Amerged) · [Commits](https://github.com/vladinsc/-CRM-Agentic-AI/commits/main) |
-| B4 | **Teste automate + evals agenți** | [`core-api/tests/`](./core-api/tests) · [`ai-service/tests/`](./ai-service/tests) |
-| B5 | **Bug report + rezolvare cu PR** | [Issue #16](https://github.com/vladinsc/-CRM-Agentic-AI/issues/16) · [PR #11](https://github.com/vladinsc/-CRM-Agentic-AI/pull/11) |
-| B6 | **Pipeline CI/CD** | [GitHub Actions](https://github.com/vladinsc/-CRM-Agentic-AI/actions) · [`.github/workflows/ci-cd.yml`](./.github/workflows/ci-cd.yml) |
-| B7 | **Raport tooluri AI în dezvoltare** | [`AI_TOOLS_REPORT.md`](./AI_TOOLS_REPORT.md) |
+> **My role:** I'm Cezar ([@06cezar](https://github.com/06cezar)), the team's top contributor. I built the two core agents end-to-end, from prompt design through the API and database to the UI, along with the research pipeline that runs them, the auth core, the leads API and 149 of the repo's 158 automated tests. [Details below ↓](#my-contributions)
 
 ---
 
-## Funcționalități
+## What it does
 
-- **Autentificare completă** — register, login/logout, verificare email, forgot/reset password
-- **Lead Pipeline** — adaugă, vizualizează, șterge lead-uri; import CSV; scraper LinkedIn
-- **4 Agenți AI:**
-  - `LeadResearchAgent` — analizează profilul unui lead, extrage semnale de cumpărare, calculează scor de intenție 0–100 (pornit automat la crearea unui lead)
-  - `CopilotAgent` — generează winning argument + draft email personalizat per lead (tier-based: HOT / WARM / COLD / LOST)
-  - `SearchQueryAgent` — generează query-uri de căutare LinkedIn din ICP
-  - `EmailClassifier` — clasifică emailuri primite prin Gmail
-- **ICP Builder** — definești profilul clientului ideal în limbaj natural; AI-ul îl folosește la ranking
-- **Gmail Integration** — conectare cont Google, monitorizare inbox prin Pub/Sub
-- **Settings** — profil utilizator, conturi conectate, info platformă
-- **Responsive** — funcționează pe mobile, tabletă și desktop
-- **CI/CD** — GitHub Actions: lint → teste → build Docker → publish GHCR
+Sales reps lose hours researching leads and end up sending generic emails. In this CRM, each lead goes through a chain of agents as soon as it arrives, whether it was typed in, imported from CSV or scraped from LinkedIn:
+
+1. **Research.** An agent reads the lead's CRM data and company website, extracts positive and negative buying signals, and scores intent from 0 to 100.
+2. **Prioritize.** The Intent Pipeline ranks leads by score, so reps start with the hottest ones.
+3. **Co-pilot.** For the selected lead, a second agent writes a winning argument and an email draft whose tone depends on the lead's tier (hot / warm / cold / lost).
+4. **Human in the loop.** The rep sends the draft or opens it in Gmail to edit first. Nothing goes out without a click.
+
+The CRM also watches a connected Gmail inbox and classifies each incoming email as a B2B lead or noise.
+
+The dashboard has three columns: a live **Activity Feed** of what the agents are doing, the **Intent Pipeline**, and the **Co-pilot** sidebar.
 
 ---
 
-## Pornire rapidă
+## My contributions
 
-### 1. Cerințe
-
-**Windows / macOS**
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalat și pornit
-
-**Linux**
-```bash
-curl -fsSL https://get.docker.com | sh
-sudo apt-get install -y docker-compose-plugin
-sudo systemctl start docker
-sudo usermod -aG docker $USER && newgrp docker
-```
-
-### 2. Clonează repo-ul
-
-```bash
-git clone https://github.com/vladinsc/-CRM-Agentic-AI.git
-cd -CRM-Agentic-AI
-```
-
-### 3. Pornește serviciile
-
-```bash
-docker compose up -d
-```
-
-> Migrațiile bazei de date rulează automat la pornire.
-
-### 4. Descarcă modelele AI (o singură dată)
-
-```bash
-docker exec crm-ollama ollama pull llama3.2:3b   # ~2GB — Research, Copilot, Email Classifier
-docker exec crm-ollama ollama pull llama3.1:8b   # ~5GB — SearchQueryAgent
-```
-
-### 5. Accesează aplicația
-
-| Serviciu | URL |
+| Area | What I built |
 |---|---|
-| Frontend | http://localhost:3000 |
-| Core API (docs) | http://localhost:8000/docs |
-| AI Service (docs) | http://localhost:8001/docs |
-| MinIO Console | http://localhost:9001 |
+| **LeadResearchAgent** | The intent-scoring agent: prompt and scoring rubric, JSON extraction, retries, and the bridge from the core API to the AI service. |
+| **CopilotAgent** | The whole feature: DB schema, agent with tier-specific prompts, AI-service endpoint, core-API router with a 24 h result cache, and the sidebar UI. |
+| **Research pipeline** | Research starts automatically when a lead is created, CSV imports are processed through a sequential queue, and every LLM call is serialized through a single lock. |
+| **Auth core** | Register / login / logout / me with JWT in httpOnly cookies, plus the login and register pages and the route guard. |
+| **Leads & dashboard** | Lead model and migrations, CRUD API with sorting, CSV import, the live stats endpoint, and the pipeline and activity feed wired to real data. |
+| **Tests & evals** | 149 of the 158 tests in the repo: unit and API tests for auth and leads, plus eval suites for both agents, including integration runs against a real Ollama model. |
+| **Frontend** | Responsive layout for mobile, tablet and desktop, the redesigned settings page, and the "Edit in Gmail" draft button. |
+| **CI** | Fixed the failing GitHub Actions pipeline: test dependencies, async test setup, and optional mail settings. |
+
+Merged pull requests: [#1 auth core](https://github.com/vladinsc/-CRM-Agentic-AI/pull/1) · [#4 lead research agent](https://github.com/vladinsc/-CRM-Agentic-AI/pull/4) · [#10 co-pilot agent](https://github.com/vladinsc/-CRM-Agentic-AI/pull/10) · [#15 responsive UI + Ollama lock](https://github.com/vladinsc/-CRM-Agentic-AI/pull/15)
+
+### Engineering notes
+
+- **Tool calling didn't hold up on a 3B model.** `llama3.2:3b` ignored the tool parameter schemas and invented its own JSON, so every lead came back as "score 50, no signals". I moved both agents to structured JSON prompting with a lenient parser (it recovers JSON wrapped in prose or missing its closing brace) and up to three retries.
+- **Calibrating the score.** Early prompts gave openly negative leads 80–90%. I rewrote the rubric with explicit score bands and rules that cap the score when there are negative signals, then checked it against hand-built test sets of leads ranging from ready-to-buy to churned.
+- **One local model, many agents.** Ollama on CPU runs one inference at a time, at about 15 s each. When a bulk import started research for every lead at once, the requests piled up on the model and the later ones were bound to hit the 60 s timeout. Imports now go through a sequential queue and all agents share one lock on the model.
+- **Sales reps don't talk in scores.** The co-pilot used to paste "intent score: 85/100" into emails. Its prompts now turn the score into tier-specific tone and strategy and never mention the number.
 
 ---
 
-## Stack
+## Architecture
 
-| Layer | Tehnologie |
-|---|---|
-| Frontend | Next.js 16 + React 19 + TypeScript + Tailwind CSS + shadcn/ui |
-| Core API | FastAPI + SQLAlchemy + Alembic + PostgreSQL |
-| AI Service | FastAPI + Ollama (llama3.2:3b / llama3.1:8b) |
-| Scraper | FastAPI + Playwright |
-| Infra | Docker Compose (8 containere) |
-| CI/CD | GitHub Actions + GHCR |
-
----
-
-## Comenzi utile
-
-```bash
-docker compose up --build          # rebuild și pornește tot
-docker compose down                # oprește (păstrează volumele)
-docker compose down -v             # oprește + șterge toate datele
-docker compose logs core-api -f    # urmărește logurile unui serviciu
-
-# Teste
-cd core-api && python -m pytest tests/ -q
-cd ai-service && python -m pytest tests/ -q
-```
-
----
-
-## User Stories
-
-| # | User Story |
-|---|---|
-| 1 | As a sales rep, I want to register with my email and password so that I can access my private CRM workspace |
-| 2 | As a user, I want to reset my password via email so that I can recover access to my account if I forget my credentials |
-| 3 | As a sales rep, I want to import leads from a CSV file so that I can bulk-add prospects without manual entry |
-| 4 | As a sales rep, I want to update a lead's status so that I can track where each prospect is in my pipeline |
-| 5 | As a sales rep, I want the AI to automatically research a new lead and calculate an intent score so that I can prioritize who to contact first |
-| 6 | As a sales rep, I want to see AI agent activity in an auto-updating feed so that I know what research is being done in the background |
-| 7 | As a sales rep, I want the AI to generate a personalized draft email for each lead so that I can send outreach without writing from scratch |
-| 8 | As a sales rep, I want to send the AI-drafted email directly from the CRM so that I don't have to switch to Gmail manually |
-| 9 | As a sales manager, I want to define my Ideal Customer Profile in plain language so that I have a clear reference of who my ideal customer is |
-| 10 | As a sales rep, I want to scrape LinkedIn Sales Navigator search results so that I can automatically import qualified prospects into my CRM |
-| 11 | As a sales rep, I want to use the Chrome extension to scrape LinkedIn leads from my own browser so that I don't need to share my LinkedIn credentials with the server |
-| 12 | As a sales rep, I want the AI to suggest LinkedIn search queries based on my existing leads so that I can find similar high-intent prospects faster |
-| 13 | As a sales rep, I want incoming emails to be automatically classified as leads or noise so that I don't miss potential business opportunities in my inbox |
-| 14 | As a developer, I want every pull request to run automated tests and lint checks so that broken code is caught before it reaches production |
-| 15 | As a user, I want to connect my Google account to the CRM and monitor my Gmail inbox so that I can receive and classify leads without leaving the platform |
-
----
-
-## System Architecture Diagrams
-
-### 1. High-Level Architecture
 ```mermaid
-graph TD
-    UI[Frontend: Next.js] --> API[Core API: FastAPI]
-    API --> AI[AI Service: FastAPI]
-    API --> Scraper[Scraper Service: FastAPI]
-    
+graph LR
+    UI[Next.js frontend] --> API[Core API<br/>FastAPI]
+    EXT[Chrome extension<br/>LinkedIn] --> API
+    GM[Gmail<br/>Pub/Sub push] --> API
     API --> DB[(PostgreSQL)]
-    API --> Storage[(MinIO)]
-    
-    AI --> Ollama[Ollama LLM]
-    Scraper --> LinkedIn[LinkedIn]
-    
-    PubSub[Google Pub/Sub] --> API
-    API --> Gmail[Gmail API]
+    API --> S3[(MinIO)]
+    API --> AI[AI service<br/>FastAPI]
+    AI --> LLM[Ollama<br/>Llama 3.2 3B / 3.1 8B]
 ```
 
-### 2. CI/CD Pipeline
-```mermaid
-graph TD
-    Start([Push / PR to main]) --> Lint[Code Quality: Ruff]
-    
-    Lint --> TestCore[Test Core API]
-    Lint --> TestAI[Test AI Service]
-    Lint --> TestFE[Build Check Frontend]
+| Agent | Job | Model | Built by |
+|---|---|---|---|
+| LeadResearchAgent | Intent score 0–100 + buying signals | llama3.2:3b | Cezar |
+| CopilotAgent | Winning argument + email draft per tier | llama3.2:3b | Cezar |
+| ICP match agent | Filters scraped leads against the Ideal Customer Profile | llama3.2:3b | Antonio |
+| SearchQueryAgent | Suggests LinkedIn Sales Navigator searches (tool calling) | llama3.1:8b | Antonio |
+| EmailClassifier | Sorts incoming Gmail into B2B leads and noise; an LLM judge re-checks a sample | llama3.2:3b | Vlad |
 
-    TestCore --> BuildCheck{On main branch?}
-    TestAI --> BuildCheck
-    TestFE --> BuildCheck
+## Tech stack
 
-    BuildCheck -- Yes --> Push[Publish to GHCR]
-    BuildCheck -- No --> End([End Pipeline])
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS, shadcn/ui |
+| Backend | FastAPI, SQLAlchemy, Alembic, PostgreSQL, MinIO |
+| AI | Ollama (llama3.2:3b, llama3.1:8b) through the OpenAI-compatible API |
+| Integrations | Gmail API + Google Pub/Sub, Chrome extension for LinkedIn |
+| Infra | Docker Compose, GitHub Actions → GHCR, Loki + Promtail + Grafana |
+| Quality | pytest (unit, API, agent evals), Ruff |
 
-    subgraph "GHCR Images"
-        Push --> ImageFE[crm-frontend]
-        Push --> ImageCore[crm-core-api]
-        Push --> ImageAI[crm-ai-service]
-        Push --> ImageScraper[crm-scraper]
-    end
-```
+## Run it locally
 
-### 3. Class Diagram (Data Models)
-```mermaid
-classDiagram
-    class User {
-        +UUID id
-        +String email
-        +String role
-    }
-    
-    class ConnectedAccount {
-        +UUID id
-        +UUID user_id
-        +String provider
-    }
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine + the Compose plugin).
 
-    class Lead {
-        +UUID id
-        +String name
-        +Integer intent_score
-        +String status
-    }
+1. Create a `.env` in the repo root:
 
-    class ScrapeJob {
-        +UUID id
-        +String query
-        +String status
-    }
+   ```env
+   DATABASE_URL=postgresql://crm_user:crm_password@db:5432/crm_db
+   AI_SERVICE_URL=http://ai-service:8000
+   BACKEND_URL=http://core-api:8000
+   FRONTEND_URL=http://localhost:3000
+   SECRET_KEY=change-me
+   ```
 
-    class AgentActivity {
-        +UUID id
-        +UUID lead_id
-        +String action
-    }
+   The Gmail (`GOOGLE_CREDENTIALS_JSON`, `NGROK_AUTHTOKEN`) and SMTP (`MAIL_*`) settings are optional. Without them, the inbox and email-verification features stay off.
 
-    class CopilotResult {
-        +UUID id
-        +UUID lead_id
-        +Text sales_argument
-    }
+2. Start the stack. Database migrations run automatically.
 
-    class Email {
-        +UUID id
-        +String message_id
-        +Boolean is_worth_saving
-    }
-    
-    class ICPBlueprint {
-        +UUID id
-        +JSON criteria
-    }
+   ```bash
+   docker compose up -d
+   ```
 
-    User *-- ConnectedAccount
-    User *-- Lead
-    ScrapeJob *-- Lead
-    Lead *-- AgentActivity
-    Lead *-- CopilotResult
-    Lead *-- Email
-```
+3. Pull the models (once):
 
-### 3. User Flow — Main Journey
-```mermaid
-flowchart TD
-    A([Start]) --> B[Register / Login]
-    B --> C{How to add leads?}
+   ```bash
+   docker exec crm-ollama ollama pull llama3.2:3b   # ~2 GB: research, co-pilot, classifier
+   docker exec crm-ollama ollama pull llama3.1:8b   # ~5 GB: search-query agent
+   ```
 
-    C -->|Manual| D[Fill lead form]
-    C -->|Bulk| E[Import CSV]
-    C -->|LinkedIn| F[LinkedIn Scraper\ndefine search query]
+4. Open http://localhost:3000. API docs: http://localhost:8000/docs (core) and http://localhost:8001/docs (AI service).
 
-    D --> G[Lead created in pipeline]
-    E --> G
-    F --> G
+Tests: `cd core-api && python -m pytest tests/ -q` and `cd ai-service && python -m pytest tests/ -q`.
 
-    G --> H[LeadResearchAgent runs automatically\nextract signals · score intent 0–100]
-    H --> I[Intent Pipeline updated\nlead ranked by score]
+## Team
 
-    I --> J[Sales rep selects a lead]
-    J --> K[CopilotAgent generates\nwinning argument + draft email]
-    K --> L{Action}
+- **Cezar Ciocîrlan** ([@06cezar](https://github.com/06cezar)): research and co-pilot agents, research pipeline, auth core, leads API, tests, responsive UI
+- **Vlad Ionescu** ([@vladinsc](https://github.com/vladinsc)): Gmail ingestion and email classifier, LLM-as-judge evals, observability stack, ICP API, CI/CD
+- **Antonio Grosu** ([@antonio-grosu](https://github.com/antonio-grosu)): LinkedIn Chrome extension, ICP-gated scraping, company-website research, search-query agent
+- **Ștefan Sălcianu** ([@stefan-salcianu](https://github.com/stefan-salcianu)): Google OAuth, sending email through Gmail, connected-account management
 
-    L -->|Send email| M[Email sent via Gmail]
-    L -->|Adjust & send| N[Edit draft → send]
-    L -->|Skip| O[Move to next lead]
+## About the project
 
-    M --> P([Done])
-    N --> P
-    O --> J
-```
-
-### 4. User Flow — Gmail Email Classification
-```mermaid
-flowchart TD
-    A([New email arrives in Gmail]) --> B[Google Pub/Sub sends webhook\nto Core API]
-    B --> C[Core API fetches email via Gmail API]
-    C --> D[EmailClassifier agent evaluates\nis this a B2B lead or noise?]
-    D --> E{is_worth_saving?}
-    E -->|Yes| F[Store body in MinIO\nSave metadata in PostgreSQL]
-    E -->|No| G[Discard — no action]
-    F --> H[Email visible in CRM inbox]
-    H --> I([Sales rep reviews lead])
-```
-
-### 6. Lead Research Flow (Technical)
-```mermaid
-sequenceDiagram
-    participant UI as Frontend
-    participant Core as Core API
-    participant DB as PostgreSQL
-    participant AI as AI Service
-    participant LLM as Ollama
-
-    UI->>Core: POST /leads/{id}/research
-    Core->>DB: Fetch Lead Data
-    DB-->>Core: Lead Record
-    Core->>AI: POST /agent/research
-    
-    Note right of AI: ResearchAgent execution
-    AI->>LLM: Prompt Evaluation
-    LLM-->>AI: JSON Result
-    
-    AI-->>Core: Parsed Insights
-    Core->>DB: Update Lead
-    Core->>DB: Create AgentActivity
-    Core-->>UI: 200 OK
-```
-
-### 7. LinkedIn Scraping Flow (Technical)
-```mermaid
-sequenceDiagram
-    participant UI as Frontend
-    participant Core as Core API
-    participant DB as PostgreSQL
-    participant Scraper as Scraper Service
-    participant LI as LinkedIn
-
-    UI->>Core: POST /scraper/jobs
-    Core->>DB: Create ScrapeJob
-    Core->>Scraper: POST /jobs (async)
-    Core-->>UI: 202 Accepted
-    
-    Scraper->>LI: Scrape Data
-    
-    loop Every Page
-        LI-->>Scraper: HTML Data
-        Scraper->>Core: POST /leads (Batch)
-        Core->>DB: Save Leads
-    end
-    
-    Scraper->>Core: PATCH /jobs (completed)
-    Core->>DB: Update Status
-```
-
-### 8. Gmail Integration Flow (Technical)
-```mermaid
-sequenceDiagram
-    participant PubSub as Google Pub/Sub
-    participant Core as Core API
-    participant Gmail as Gmail API
-    participant AI as AI Classifier
-    participant MinIO as MinIO Storage
-    participant DB as PostgreSQL
-
-    PubSub->>Core: POST /gmail/webhook
-    Core-->>PubSub: 200 OK
-    
-    Core->>Gmail: Fetch new messages
-    Gmail-->>Core: Raw Email
-    
-    Core->>AI: evaluate_relevance()
-    AI-->>Core: is_worth_saving
-    
-    alt is_worth_saving == True
-        Core->>MinIO: Store Body
-        Core->>DB: Save Metadata
-    end
-```
+We built it for the Software Development Methods course, which grades the development process as well as the product. That meant a Jira backlog with user stories, a PR-based Git workflow, UML diagrams and CI/CD. We used AI coding tools (Claude Code, v0) throughout, and [AI_TOOLS_REPORT.md](AI_TOOLS_REPORT.md) documents how. The original Romanian course docs (grading checklist, user stories, diagrams) are in [README.ro.md](README.ro.md).
